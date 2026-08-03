@@ -50,6 +50,8 @@ namespace IAGrim
                 Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("en-US");
             }
 
+            GlobalPaths.MigrateLegacyData();
+            GlobalContext.Properties["LogFilePath"] = Path.Combine(GlobalPaths.CoreFolder, "log.txt");
             var logRepository = LogManager.GetRepository(Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly());
             XmlConfigurator.Configure(logRepository, new FileInfo("log4net.config"));
 

@@ -68,7 +68,7 @@ namespace IAGrim.Utilities.Cloud {
                     Backup(Path.Combine(path, "EvilSoft", "IAGD"), forced);
                 }
 
-                // Do a mandatory backup to appdata
+                // Keep a mandatory backup with the portable user data.
                 Backup(GlobalPaths.BackupLocation, false);
             } catch (UnauthorizedAccessException ex) {
                 Logger.Warn(ex.Message);

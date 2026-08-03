@@ -1,30 +1,46 @@
 #include "StdAfx.h"
 #include "HookLog.h"
-#include <filesystem>
 #include <iostream>
 #include <windows.h>
-#include <shlobj.h>
-#include "Logger.h"
 
-// TODO: What's this doing in HookLog.cpp ??
+
+// Resolve portable data relative to this injected DLL, not the host process.
 std::wstring GetIagdFolder() {
-    PWSTR path_tmp;
-    auto get_folder_path_ret = SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &path_tmp);
+    HMODULE module = nullptr;
+    const auto address = reinterpret_cast<LPCWSTR>(&GetIagdFolder);
+    const auto flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
 
-    if (get_folder_path_ret != S_OK) {
-        CoTaskMemFree(path_tmp);
-		LogToFile(LogLevel::WARNING, L"ERROR Could not find roaming appdata folder");
+    if (!GetModuleHandleExW(flags, address, &module)) {
+        OutputDebugStringW(L"Item Assistant could not locate the hook module.\n");
         return std::wstring();
     }
 
-    std::wstring path = path_tmp;
-    CoTaskMemFree(path_tmp);
+    wchar_t modulePath[MAX_PATH];
+    const DWORD length = GetModuleFileNameW(module, modulePath, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) {
+        OutputDebugStringW(L"Item Assistant could not resolve the hook module path.\n");
+        return std::wstring();
+    }
 
-    return path + L"\\..\\local\\evilsoft\\iagd\\";
+    std::wstring path(modulePath, length);
+    const auto separator = path.find_last_of(L"\\/");
+    if (separator == std::wstring::npos) {
+        OutputDebugStringW(L"Item Assistant received an invalid hook module path.\n");
+        return std::wstring();
+    }
+
+    const std::wstring userData = path.substr(0, separator + 1) + L"UserData";
+    if (!CreateDirectoryW(userData.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) {
+        OutputDebugStringW(L"Item Assistant could not create the portable data directory.\n");
+        return std::wstring();
+    }
+
+    return userData + L"\\";
 }
 
 HookLog::HookLog() : m_lastMessageCount(0), m_initialized(false) {
-    std::wstring iagdFolder = GetIagdFolder(); // %appdata%\..\local\evilsoft\iagd
+    std::wstring iagdFolder = GetIagdFolder(); // <hook directory>\UserData
 
     wchar_t tmpfolder[MAX_PATH]; // "%appdata%\..\local\temp\"
     GetTempPath(MAX_PATH, tmpfolder);

@@ -16,16 +16,6 @@ namespace IAGrim.Utilities {
         
 
 
-        private static string LocalAppdata {
-            get {
-                string? appdata = System.Environment.GetEnvironmentVariable("LocalAppData");
-                if (string.IsNullOrEmpty(appdata))
-                    return Path.Combine(System.Environment.GetEnvironmentVariable("AppData") ?? string.Empty, "..", "local");
-                else
-                    return appdata;
-            }
-        }
-
 
         public static string ItemsHtmlFile => Path.Combine(StorageFolder, "index.html");
 
@@ -290,11 +280,47 @@ namespace IAGrim.Utilities {
 
         public static string CoreFolder {
             get {
-                string path = Path.Combine(LocalAppdata, "EvilSoft", "IAGD");
+                string path = Path.Combine(AppContext.BaseDirectory, "UserData");
                 Directory.CreateDirectory(path);
 
                 return path;
             }
+        }
+
+        public static void MigrateLegacyData() {
+            string destination = Path.Combine(AppContext.BaseDirectory, "UserData");
+            if (Directory.Exists(destination)) {
+                return;
+            }
+
+            string legacy = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "EvilSoft",
+                "IAGD"
+            );
+            if (!Directory.Exists(legacy)) {
+                Directory.CreateDirectory(destination);
+                return;
+            }
+
+            string staging = Path.Combine(AppContext.BaseDirectory, "UserData.migrating");
+            if (Directory.Exists(staging)) {
+                Directory.Delete(staging, true);
+            }
+
+            Directory.CreateDirectory(staging);
+            foreach (string sourceFile in Directory.EnumerateFiles(legacy, "*", SearchOption.AllDirectories)) {
+                string relativePath = Path.GetRelativePath(legacy, sourceFile);
+                string destinationFile = Path.Combine(staging, relativePath);
+                string? destinationDirectory = Path.GetDirectoryName(destinationFile);
+                if (!string.IsNullOrEmpty(destinationDirectory)) {
+                    Directory.CreateDirectory(destinationDirectory);
+                }
+
+                File.Copy(sourceFile, destinationFile);
+            }
+
+            Directory.Move(staging, destination);
         }
 
 
