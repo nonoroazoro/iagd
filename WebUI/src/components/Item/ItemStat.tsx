@@ -1,7 +1,12 @@
-import {h} from "preact";
+import { h } from 'preact';
+import { PureComponent } from 'preact/compat';
 import { IStat } from '../../interfaces/IStat';
-import {PureComponent} from "preact/compat";
+import type { IRollStat } from '../../interfaces';
+import { MaximumRollBadge } from '.';
 
+interface Props extends IStat {
+  rollStat?: IRollStat | null;
+}
 
 function statToString(text: string, stat: IStat) {
   return text
@@ -14,40 +19,40 @@ function statToString(text: string, stat: IStat) {
     .replace('{6}', stat.param6);
 }
 
-
-// TODO: Color differentiation on {4}
-class ItemStat extends PureComponent<IStat, object> {
+class ItemStat extends PureComponent<Props, object> {
   render() {
     if (this.props.text === '') {
       return null;
     }
 
+    const className = this.props.rollStat?.isMaximum ? 'roll-maximum-stat' : undefined;
     if (this.props.extras) {
       const text = statToString(this.props.text.replace('{3}', ' '), this.props);
       const modifier = text.substr(0, text.indexOf(' '));
       const label = text.substr(text.indexOf(' ') + 1);
 
-      // TODO: We have a tooltip.. that means we got a skill in {3}
       return (
-        <p>
+        <p className={className}>
           <a data-tip={this.props.extras} className="skill-trigger">
             <span className="modifier">{modifier}</span>&nbsp;
             <span className="label">{label}</span>
             <span className="modified-skill">{this.props.param3}</span>
           </a>
-        </p>
-      );
-    } else {
-      const text = statToString(this.props.text, this.props);
-      const modifier = text.substr(0, text.indexOf(' '));
-      const label = text.substr(text.indexOf(' ') + 1);
-      return (
-        <p>
-          <span className="modifier">{modifier}</span>&nbsp;
-          <span className="label">{label}</span>
+          <MaximumRollBadge roll={this.props.rollStat} />
         </p>
       );
     }
+
+    const text = statToString(this.props.text, this.props);
+    const modifier = text.substr(0, text.indexOf(' '));
+    const label = text.substr(text.indexOf(' ') + 1);
+    return (
+      <p className={className}>
+        <span className="modifier">{modifier}</span>&nbsp;
+        <span className="label">{label}</span>
+        <MaximumRollBadge roll={this.props.rollStat} />
+      </p>
+    );
   }
 }
 

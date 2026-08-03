@@ -5,7 +5,7 @@ import ICollectionItem from '../interfaces/ICollectionItem';
 import './CollectionItemContainer.css';
 import { openUrl } from '../integration/integration';
 import {PureComponent} from "preact/compat";
-import translate from "../translations/EmbeddedTranslator";
+import { localize, translate } from '../translations';
 import IItemAggregateRow from "../interfaces/IItemAggregateRow";
 
 interface Props {
@@ -62,18 +62,18 @@ class CollectionItemContainer extends PureComponent<Props, object> {
       sum[obj.quality.toLowerCase()] += obj.num;
     }
 
-    table['Sum'] = sum; // TODO: Translate support
+    table[localize('Sum', '合计')] = sum;
     console.log('prelim', table);
 
     // TODO: Translate support
     return <table className={'aggregate-table'}>
       <tr>
-        <th>Slot</th>
-        <th>Epic</th>
-        <th>Blue</th>
-        <th>Green</th>
-        <th>Green (Rare)</th>
-        <th>Green (DoubleRare)</th>
+        <th>{localize('Slot', '部位')}</th>
+        <th>{localize('Epic', '史诗')}</th>
+        <th>{localize('Blue', '蓝色')}</th>
+        <th>{localize('Green', '绿色')}</th>
+        <th>{localize('Green (Rare)', '绿色（稀有）')}</th>
+        <th>{localize('Green (Double Rare)', '绿色（双稀有）')}</th>
       </tr>
       {
         Object.keys(table).map((a, b, c) => {

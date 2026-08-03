@@ -4,6 +4,8 @@ import {IReplicaRow} from "../../interfaces/IReplicaRow";
 import ReplicaStat from "./ReplicaStat";
 import {IStat, statToString} from "../../interfaces/IStat";
 import ItemStat from "./ItemStat";
+import type { IRollStat } from '../../interfaces';
+import { matchRollStats } from '../../utils';
 
 interface Props {
   rows: IReplicaRow[];
@@ -11,6 +13,7 @@ interface Props {
   skills: IStat[];
   hideGrantedSkill: boolean;
   hideSetBonus: boolean; /* 20-26 */
+  rollStats?: IRollStat[];
 }
 
 /**
@@ -33,6 +36,7 @@ class ReplicaStatContainer extends PureComponent<Props, object> {
 
   render() {
     const {rows, id, skills} = this.props;
+    const rowRolls = matchRollStats(rows.map((row) => row.text), this.props.rollStats);
     if (rows === null || rows.length === 0)
       return null;
 
@@ -84,11 +88,11 @@ class ReplicaStatContainer extends PureComponent<Props, object> {
             let replicaStat;
 
             if (setSkillStage === 0) {
-              replicaStat = <ReplicaStat {...row} key={id + idx} type={23}/>
+              replicaStat = <ReplicaStat {...row} rollStat={rowRolls[idx]} key={id + idx} type={23}/>
             } else if (setSkillStage === 1) {
-              replicaStat = <ReplicaStat {...row} key={id + idx} type={21}/>
+              replicaStat = <ReplicaStat {...row} rollStat={rowRolls[idx]} key={id + idx} type={21}/>
             } else if (setSkillStage > 1) {
-              replicaStat = <ReplicaStat {...row} key={id + idx} type={40}/>
+              replicaStat = <ReplicaStat {...row} rollStat={rowRolls[idx]} key={id + idx} type={40}/>
             }
 
             ++setSkillStage;
@@ -101,12 +105,12 @@ class ReplicaStatContainer extends PureComponent<Props, object> {
           }
 
           if (!this.isSkillBooster(row)) {
-            return <ReplicaStat {...row} key={id + idx}/>
+            return <ReplicaStat {...row} rollStat={rowRolls[idx]} key={id + idx}/>
           }
           // "+1 to all skills in Oathkeeper" will not be included in the "skills" array, so just render it normally.
           // Setting render type to 18 to skip underline and cursor
           else if (!skills.some(skill => row.text.includes(skill.param3))) {
-            return <ReplicaStat text={row.text} type={18} key={id + idx}/>
+            return <ReplicaStat text={row.text} type={18} rollStat={rowRolls[idx]} key={id + idx}/>
           }
           // Render "+N to SomeSkill", We have our own skill descriptions, superior to that of the replica rows.
           else if (!hasShownSkills) {

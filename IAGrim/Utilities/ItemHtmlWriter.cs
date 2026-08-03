@@ -1,13 +1,17 @@
-﻿using IAGrim.Database;
+using DataAccess;
+using IAGrim.Database;
 using IAGrim.Database.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using EvilsoftCommons.Exceptions;
 using IAGrim.Database.DAO.Util;
 using IAGrim.Database.Model;
+using IAGrim.Services.Dto;
 using IAGrim.Services.ItemReplica;
+using IAGrim.Services.ItemStats;
 using IAGrim.UI.Controller.dto;
 using log4net;
 using Newtonsoft.Json;
@@ -15,6 +19,8 @@ using StatTranslator;
 
 namespace IAGrim.Utilities {
     internal static class ItemHtmlWriter {
+        private static readonly Regex _rollNumberPattern = new(@"[+-]?\d+(?:\.\d+)?", RegexOptions.Compiled);
+
         private static readonly ILog Logger = LogManager.GetLogger(typeof(ItemHtmlWriter));
 
         private static JsonStat ToJsonStat(TranslatedStat stat) {
@@ -44,6 +50,127 @@ namespace IAGrim.Utilities {
         }
 
 
+        private static List<JsonRollStat> GetRollStats(BaseItem item, IReadOnlyDictionary<string, StatRange>? ranges) {
+            if (item.RollSource == null || item.Tags == null || RuntimeSettings.StatManager == null) {
+                return new List<JsonRollStat>();
+            }
+
+            if (ranges == null || ranges.Count == 0) {
+                return new List<JsonRollStat>();
+            }
+
+            var minimumTags = BuildBoundaryTags(item, ranges, false);
+            var maximumTags = BuildBoundaryTags(item, ranges, true);
+            var result = new List<JsonRollStat>();
+
+            AddRollStats(
+                result,
+                item.HeaderStats,
+                RuntimeSettings.StatManager.ProcessStats(minimumTags, TranslatedStatType.HEADER),
+                RuntimeSettings.StatManager.ProcessStats(maximumTags, TranslatedStatType.HEADER));
+            AddRollStats(
+                result,
+                item.BodyStats,
+                RuntimeSettings.StatManager.ProcessStats(minimumTags, TranslatedStatType.BODY),
+                RuntimeSettings.StatManager.ProcessStats(maximumTags, TranslatedStatType.BODY));
+            AddRollStats(
+                result,
+                item.PetStats,
+                RuntimeSettings.StatManager.ProcessStats(minimumTags, TranslatedStatType.PET),
+                RuntimeSettings.StatManager.ProcessStats(maximumTags, TranslatedStatType.PET));
+
+            return result;
+        }
+
+        private static HashSet<IItemStat> BuildBoundaryTags(
+            BaseItem item,
+            IReadOnlyDictionary<string, StatRange> ranges,
+            bool maximum) {
+            var result = new HashSet<IItemStat>();
+            if (item.Tags == null || item.RollSource == null) {
+                return result;
+            }
+
+            foreach (var tag in item.Tags) {
+                double value = tag.Value;
+                if (tag.Stat != null
+                    && string.IsNullOrEmpty(tag.TextValue)
+                    && ranges.TryGetValue(tag.Stat, out var range)
+                    && item.RollSource.RolledStats.TryGetValue(tag.Stat, out var rolledValue)) {
+                    double fixedContribution = tag.Value - rolledValue;
+                    value = (maximum ? range.Maximum : range.Minimum) + fixedContribution;
+                }
+
+                result.Add(new DBStatRow {
+                    Record = tag.Record,
+                    Stat = tag.Stat,
+                    TextValue = tag.TextValue,
+                    Value = value
+                });
+            }
+
+            return result;
+        }
+
+        private static void AddRollStats(
+            List<JsonRollStat> result,
+            IEnumerable<TranslatedStat> actualStats,
+            IEnumerable<TranslatedStat> minimumStats,
+            IEnumerable<TranslatedStat> maximumStats) {
+            var minimumBuckets = BuildStatBuckets(minimumStats);
+            var maximumBuckets = BuildStatBuckets(maximumStats);
+
+            foreach (var actualStat in actualStats) {
+                string? actual = actualStat.ToString();
+                if (string.IsNullOrWhiteSpace(actual)) {
+                    continue;
+                }
+
+                string key = NormalizeStatText(actual);
+                if (!minimumBuckets.TryGetValue(key, out var minimumQueue)
+                    || !maximumBuckets.TryGetValue(key, out var maximumQueue)
+                    || minimumQueue.Count == 0
+                    || maximumQueue.Count == 0) {
+                    continue;
+                }
+
+                string minimum = minimumQueue.Dequeue();
+                string maximum = maximumQueue.Dequeue();
+                if (string.Equals(minimum, maximum, StringComparison.Ordinal)) {
+                    continue;
+                }
+
+                result.Add(new JsonRollStat {
+                    Text = actual,
+                    Minimum = minimum,
+                    Maximum = maximum,
+                    IsMaximum = string.Equals(actual, maximum, StringComparison.Ordinal)
+                });
+            }
+        }
+
+        private static Dictionary<string, Queue<string>> BuildStatBuckets(IEnumerable<TranslatedStat> stats) {
+            var result = new Dictionary<string, Queue<string>>(StringComparer.Ordinal);
+            foreach (var stat in stats) {
+                string? text = stat.ToString();
+                if (string.IsNullOrWhiteSpace(text)) {
+                    continue;
+                }
+
+                string key = NormalizeStatText(text);
+                if (!result.TryGetValue(key, out var queue)) {
+                    queue = new Queue<string>();
+                    result[key] = queue;
+                }
+                queue.Enqueue(text);
+            }
+            return result;
+        }
+
+        private static string NormalizeStatText(string text) {
+            return _rollNumberPattern.Replace(text, "#").Trim();
+        }
+
         private static string GetUniqueIdentifier(PlayerHeldItem item) {
             switch (item) {
                 case PlayerItem pi:
@@ -56,7 +183,7 @@ namespace IAGrim.Utilities {
             }
         }
 
-        private static JsonItem GetJsonItem(PlayerHeldItem item) {
+        private static JsonItem GetJsonItem(PlayerHeldItem item, Dictionary<string, IReadOnlyDictionary<string, StatRange>?> rangeCache) {
             // TODO: Modifiers
 
             bool isHardcore = false;
@@ -115,6 +242,16 @@ namespace IAGrim.Utilities {
                     .ToList();
             }
 
+            var rollStats = new List<JsonRollStat>();
+            if (item is BaseItem baseItem && baseItem.RollSource != null) {
+                string rangeKey = string.Join("|", baseItem.BaseRecord, baseItem.PrefixRecord, baseItem.SuffixRecord);
+                if (!rangeCache.TryGetValue(rangeKey, out var ranges)) {
+                    ranges = SeedStatCalculator.ComputeRanges(baseItem.RollSource);
+                    rangeCache[rangeKey] = ranges;
+                }
+                rollStats = GetRollStats(baseItem, ranges);
+            }
+
             var json = new JsonItem {
                 UniqueIdentifier = uniqueIdentifier,
                 MergeIdentifier = mergeIdentifier,
@@ -138,6 +275,7 @@ namespace IAGrim.Utilities {
                 IsMonsterInfrequent = item.ModifiedSkills.Any(s => s.IsMonsterInfrequent),
                 IsHardcore = isHardcore,
                 ReplicaStats = replicaStats,
+                RollStats = rollStats,
             };
 
             if (!skipStats) {
@@ -175,8 +313,9 @@ namespace IAGrim.Utilities {
 
         public static List<List<JsonItem>> ToJsonSerializable(List<List<PlayerHeldItem>> items) {
             List<List<JsonItem>> result = new List<List<JsonItem>>(items.Count);
+            var rangeCache = new Dictionary<string, IReadOnlyDictionary<string, StatRange>?>(StringComparer.Ordinal);
             foreach (List<PlayerHeldItem> itemList in items) {
-                result.Add(itemList.Select(GetJsonItem).ToList());
+                result.Add(itemList.Select(item => GetJsonItem(item, rangeCache)).ToList());
             }
 
             return result;

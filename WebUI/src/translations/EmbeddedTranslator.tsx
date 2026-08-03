@@ -3,6 +3,7 @@ import { isEmbedded, getTranslationStrings } from '../integration/integration';
 /** Applies translations provided by the parent application. */
 class EmbeddedTranslator {
   static defaults: { [index: string]: string } = {
+    'app.locale': 'en',
     'app.tab.items': 'Items',
     'app.tab.collections': 'Collections',
     'app.tab.help': 'Help',
@@ -99,6 +100,10 @@ function translate(id: string, arg1?: string, arg2?: string, arg3?: string): str
   }
 
   return translation;
+}
+
+export function localize<T>(english: T, chinese: T): T {
+  return t.translate('app.locale') === 'zh' ? chinese : english;
 }
 
 export default translate;

@@ -8,7 +8,7 @@ namespace GrimDawnItemStats;
 /// priming iteration the game runs before any stat is rolled. Each <see cref="Next"/> call
 /// then advances the shared stream one more step.
 /// </summary>
-public sealed class MinstdRandom
+public sealed class MinstdRandom : IRollSource
 {
     // Schrage decomposition constants for a = 16807, m = 2147483647:
     //   q = m / a = 127773,  r = m % a = 2836.
@@ -33,6 +33,24 @@ public sealed class MinstdRandom
     {
         _state = Step(_state);
         return _state;
+    }
+
+    public int NextRange(int maximumInclusive)
+    {
+        uint modulus = unchecked((uint)maximumInclusive + 1U);
+        if (modulus == 0)
+            modulus = 1;
+        return (int)((uint)Next() % modulus);
+    }
+
+    public double NextUnit()
+    {
+        return Next() * System.Math.Pow(2.0, -31);
+    }
+
+    public void Consume()
+    {
+        Next();
     }
 
     /// <summary>

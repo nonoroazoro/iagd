@@ -1,4 +1,4 @@
-﻿using IAGrim.Database;
+using IAGrim.Database;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -144,21 +144,14 @@ namespace IAGrim.Services {
 
                 foreach (var pi in items) {
                     uint seed = unchecked((uint)(int)pi.Seed);
-                    pi.Tags = BuildTags(pi, statMap, seed, HasReplicaStats(pi.ReplicaInfo));
+                    pi.Tags = BuildTags(pi, statMap, seed);
                 }
 
                 Logger.Debug($"Applied stats to {items.Count} items");
             }
         }
 
-        /// <summary>
-        /// True only when the item actually carries game-provided replica stats. ReplicaInfo is stored as a
-        /// JSON array and comes back as the literal "[]" (not null/empty) when the item has no replica rows,
-        /// so a plain IsNullOrEmpty check would wrongly report a replica and suppress the seed reconstruction.
-        /// </summary>
-        private static bool HasReplicaStats(string? replicaInfo) {
-            return !string.IsNullOrWhiteSpace(replicaInfo) && replicaInfo.Trim() != "[]";
-        }
+
 
         public void ApplyStatsToPlayerItems(List<PlayerItem> items) {
             if (items.Count > 0) {
@@ -174,7 +167,7 @@ namespace IAGrim.Services {
                 foreach (PlayerItem pi in items) {
                     // TODO: Don't do this, use PlayerItemRecords.. somehow.. those contain pet bonuses
                     uint seed = pi.USeed;
-                    pi.Tags = BuildTags(pi, statMap, seed, HasReplicaStats(pi.ReplicaInfo));
+                    pi.Tags = BuildTags(pi, statMap, seed);
                 }
 
 
@@ -190,7 +183,7 @@ namespace IAGrim.Services {
         /// same stats the game would report, just computed by us. If the engine can't yet model one
         /// of the item's records, we fall back to the raw summed base stats.
         /// </summary>
-        private HashSet<DBStatRow> BuildTags(BaseItem item, Dictionary<string, List<DBStatRow>> statMap, uint seed, bool hasReplica) {
+        private HashSet<DBStatRow> BuildTags(BaseItem item, Dictionary<string, List<DBStatRow>> statMap, uint seed) {
             List<DBStatRow> Raw(string? record) =>
                 !string.IsNullOrEmpty(record) && statMap.ContainsKey(record) ? statMap[record] : new List<DBStatRow>();
 
@@ -202,9 +195,13 @@ namespace IAGrim.Services {
                 petRows.AddRange(Filtered(petRecord));
             }
 
-            IReadOnlyDictionary<string, double>? rolled = hasReplica
+            var baseRows = Raw(item.BaseRecord);
+            var prefixRows = Raw(item.PrefixRecord);
+            var suffixRows = Raw(item.SuffixRecord);
+            IReadOnlyDictionary<string, double>? rolled = SeedStatCalculator.Compute(baseRows, prefixRows, suffixRows, seed);
+            item.RollSource = rolled == null
                 ? null
-                : SeedStatCalculator.Compute(Raw(item.BaseRecord), Raw(item.PrefixRecord), Raw(item.SuffixRecord), seed);
+                : new ItemRollSource(baseRows, prefixRows, suffixRows, rolled);
 
             var stats = new List<DBStatRow>();
             if (rolled != null) {

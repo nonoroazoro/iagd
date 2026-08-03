@@ -3,6 +3,7 @@ import { CharacterListDto, getBackedUpCharacters, getCharacterDownloadUrl, openU
 import { CloudDownload } from 'lucide-preact';
 import './CharacterListContainer.css';
 import {PureComponent} from "preact/compat";
+import { localize } from '../translations';
 
 
 class CharacterListContainer extends PureComponent<object, object> {
@@ -30,7 +31,7 @@ class CharacterListContainer extends PureComponent<object, object> {
           </td>
           <td>
             <h2>{clean(c.name)}</h2>
-            Last modified: {c.updatedAt}
+            {localize('Last modified:', '最后修改：')} {c.updatedAt}
           </td>
         </tr>
       </table>
@@ -40,13 +41,13 @@ class CharacterListContainer extends PureComponent<object, object> {
   render() {
     const characters = getBackedUpCharacters();
     return <div className="characters">
-      <h1>Backed up characters</h1>
+      <h1>{localize('Backed up characters', '已备份的角色')}</h1>
       <ul>
         {characters.map(this.renderCharacter)}
       </ul>
 
       <footer>
-        Characters are only backed up by IAGD when playing with GOG or Steam with cloud sync deactivated. <br/>
+        {localize('Characters are only backed up by IAGD when playing with GOG or Steam with cloud sync deactivated.', '只有使用 GOG，或关闭 Steam Cloud 后游玩时，IAGD 才会备份角色。')} <br/>
       </footer>
     </div>;
   }

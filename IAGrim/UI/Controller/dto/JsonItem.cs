@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using IAGrim.Services.ItemReplica;
 
@@ -35,6 +35,7 @@ namespace IAGrim.UI.Controller.dto {
         public bool IsHardcore { get; set; }
 
         public IList<ItemStatInfo>? ReplicaStats { get; set; }
+        public IList<JsonRollStat>? RollStats { get; set; }
 
         public int CompareTo(JsonItem? other) {
             if (other == null) {

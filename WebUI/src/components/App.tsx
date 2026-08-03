@@ -1,6 +1,6 @@
 import {h} from 'preact';
 import Header from './header';
-import Help from "../containers/help/Help";
+import { Help } from '../containers/help';
 import IItem from "../interfaces/IItem";
 import ICollectionItem from "../interfaces/ICollectionItem";
 import {PureComponent} from "preact/compat";

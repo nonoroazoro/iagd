@@ -1,7 +1,7 @@
 import {h} from "preact";
 import IItem from '../../interfaces/IItem';
 import { isEmbedded } from '../../integration/integration';
-import translate from '../../translations/EmbeddedTranslator';
+import { localize, translate } from '../../translations';
 import IItemType from '../../interfaces/IItemType';
 import {PureComponent} from "preact/compat";
 
@@ -93,7 +93,7 @@ class ItemCornerContainer extends PureComponent<Props, object> {
             className="cursor-help"
             src="static/gold-coins-sm.png"
             data-tip={translate('item.augmentPurchasable', item.extras)}
-            alt="You can purchase this item"
+            alt={localize('You can purchase this item', '可以购买此物品')}
           />
 
         </span>
@@ -104,7 +104,7 @@ class ItemCornerContainer extends PureComponent<Props, object> {
           className="cursor-help"
           src={cloudIconOk}
           data-tip={translate(cloudLabelOk)}
-          alt={"Synced to the cloud"}
+          alt={localize('Synced to the cloud', '已同步到云端')}
         />
         }
 
@@ -113,7 +113,7 @@ class ItemCornerContainer extends PureComponent<Props, object> {
           className="cursor-help"
           src={cloudIconErr}
           data-tip={translate(cloudLabelError)}
-          alt={"Not synced to the cloud"}
+          alt={localize('Not synced to the cloud', '未同步到云端')}
         />
         }
 
@@ -135,7 +135,7 @@ class ItemCornerContainer extends PureComponent<Props, object> {
               className="cursor-help"
               src="static/buddy.png"
               data-tip={translate('item.buddies.plural')}
-              alt={"Several of your buddies has this item"}
+              alt={localize('Several of your buddies have this item', '多位好友拥有此物品')}
             />
 
             </span>

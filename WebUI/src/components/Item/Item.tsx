@@ -8,11 +8,12 @@ import translate from '../../translations/EmbeddedTranslator';
 import IItemType from '../../interfaces/IItemType';
 import GetSetName, { GetSetItems } from '../../integration/ItemSetService';
 import ICollectionItem from '../../interfaces/ICollectionItem';
-import { IStat, statToString } from '../../interfaces/IStat';
+import { statToString } from '../../interfaces/IStat';
 import ItemCornerContainer from './ItemCornerContainer';
 import { v4 as uuidv4 } from 'uuid';
 import {PureComponent} from "preact/compat";
 import ReplicaStatContainer from "./ReplicaStatContainer";
+import { matchRollStats } from '../../utils';
 
 
 interface Props {
@@ -87,16 +88,7 @@ class Item extends PureComponent<Props, object> {
     return "";
   }
 
-  statToString(stat: IStat) {
-    return stat.text
-      .replace("{0}", stat.param0)
-      .replace("{1}", stat.param1)
-      .replace("{2}", stat.param2)
-      .replace("{3}", stat.param3)
-      .replace("{4}", stat.param4)
-      .replace("{5}", stat.param5)
-      .replace("{6}", stat.param6);
-  }
+
 
   renderIcon() {
     const item = this.props.items[0];
@@ -116,22 +108,36 @@ class Item extends PureComponent<Props, object> {
     const socket = item.socket.replace(" ", "");
     const { hideItemSkills } = this.props;
 
-    const headerStats = item.headerStats.map((stat) =>
-      <ItemStat {...stat} key={`stat-head-${getUniqueId(item)}-${socket}-${statToString(stat)}`.replace(' ', '_')} />
+    const headerTexts = item.headerStats.map(statToString);
+    const bodyTexts = item.bodyStats.map(statToString);
+    const petTexts = item.petStats.map(statToString);
+    const allRolls = matchRollStats([...headerTexts, ...bodyTexts, ...petTexts], item.rollStats);
+    const headerRolls = allRolls.slice(0, headerTexts.length);
+    const bodyStart = headerTexts.length;
+    const petStart = bodyStart + bodyTexts.length;
+    const bodyRolls = allRolls.slice(bodyStart, petStart);
+    const petRolls = allRolls.slice(petStart);
+
+    const headerStats = item.headerStats.map((stat, index) =>
+      <ItemStat {...stat} rollStat={headerRolls[index]} key={`stat-head-${getUniqueId(item)}-${socket}-${statToString(stat)}`.replace(' ', '_')} />
     );
 
-    const bodyStats = item.bodyStats.map((stat) =>
-      <ItemStat {...stat} key={`stat-body-${getUniqueId(item)}-${socket}-${statToString(stat)}`.replace(' ', '_')} />
+    const bodyStats = item.bodyStats.map((stat, index) =>
+      <ItemStat {...stat} rollStat={bodyRolls[index]} key={`stat-body-${getUniqueId(item)}-${socket}-${statToString(stat)}`.replace(' ', '_')} />
     );
 
-    const petStats = item.petStats.map((stat) =>
-      <ItemStat {...stat} key={`stat-pets-${getUniqueId(item)}-${socket}-${statToString(stat)}`.replace(' ', '_')} />
+    const petStats = item.petStats.map((stat, index) =>
+      <ItemStat {...stat} rollStat={petRolls[index]} key={`stat-pets-${getUniqueId(item)}-${socket}-${statToString(stat)}`.replace(' ', '_')} />
     );
 
     const setName = GetSetName(item.baseRecord);
     const setItemsList = this.getSetItemTooltip(setName, item.isHardcore);
 
     const numItems = this.props.items.filter(m => m.type === IItemType.Player).length;
+    const transferAllLabel = translate('item.label.transferAll');
+    const transferAllText = transferAllLabel.includes('{0}')
+      ? transferAllLabel.replace('{0}', String(numItems))
+      : `${transferAllLabel} (${numItems})`;
 
     const miText = item.isMonsterInfrequent ? ' / MI' : '';
     return (
@@ -147,7 +153,7 @@ class Item extends PureComponent<Props, object> {
           <span className="item-socket-label">{item.socket}</span>
           }
 
-          {item.replicaStats && <ReplicaStatContainer rows={item.replicaStats} id={getUniqueId(item)} skills={item.bodyStats} hideGrantedSkill={hideItemSkills} hideSetBonus={false} /> }
+          {item.replicaStats && <ReplicaStatContainer rows={item.replicaStats} id={getUniqueId(item)} skills={item.bodyStats} hideGrantedSkill={hideItemSkills} hideSetBonus={false} rollStats={item.rollStats} /> }
           <ul className="headerStats">
             {headerStats}
           </ul>
@@ -197,7 +203,7 @@ class Item extends PureComponent<Props, object> {
 
         {numItems > 1 && item.type === IItemType.Player ?
           <div className="link-container-all">
-            <a onClick={() => this.props.transferAll(this.props.items)}>{translate('item.label.transferAll')} ({numItems})</a>
+            <a onClick={() => this.props.transferAll(this.props.items)}>{transferAllText}</a>
           </div>
           : ''
         }

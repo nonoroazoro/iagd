@@ -44,6 +44,8 @@ public static class ItemStatEngine
         IReadOnlyDictionary<string, double> Stats,
         IReadOnlyList<string> UnmodeledFields,
         IReadOnlyList<ProcLine>? ProcLines = null);
+    /// <summary>Lower and upper theoretical values for every modeled stat.</summary>
+    public sealed record RangeResult(Result Minimum, Result Maximum);
 
     private const double BaseJitterPercent = 20.0;
 
@@ -414,6 +416,30 @@ public static class ItemStatEngine
         IEnumerable<InputStat>? prefixStats = null,
         IEnumerable<InputStat>? suffixStats = null)
     {
+        return ComputeCore(stats, new MinstdRandom(seed), scalePercentOverride, prefixStats, suffixStats);
+    }
+
+    /// <summary>
+    /// Calculates theoretical lower and upper stat boundaries without treating fixed fields as rolls.
+    /// </summary>
+    public static RangeResult ComputeRange(
+        IEnumerable<InputStat> stats,
+        double? scalePercentOverride = null,
+        IEnumerable<InputStat>? prefixStats = null,
+        IEnumerable<InputStat>? suffixStats = null)
+    {
+        return new RangeResult(
+            ComputeCore(stats, new BoundRandom(false), scalePercentOverride, prefixStats, suffixStats),
+            ComputeCore(stats, new BoundRandom(true), scalePercentOverride, prefixStats, suffixStats));
+    }
+
+    private static Result ComputeCore(
+        IEnumerable<InputStat> stats,
+        IRollSource rng,
+        double? scalePercentOverride,
+        IEnumerable<InputStat>? prefixStats,
+        IEnumerable<InputStat>? suffixStats)
+    {
         var (values, text) = ParseStats(stats);
         bool hasPrefix = prefixStats is not null;
         bool hasSuffix = suffixStats is not null;
@@ -431,7 +457,6 @@ public static class ItemStatEngine
         double sp = scalePercentOverride
             ?? (values.GetValueOrDefault("attributeScalePercent", 0.0) + affixScaleAdd);
 
-        var rng = new MinstdRandom(seed);
         var result = new Dictionary<string, double>(StringComparer.Ordinal);
         var affixPairFields = new List<string>();
         var procLines = new List<ProcLine>();

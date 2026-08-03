@@ -342,6 +342,7 @@ namespace StatTranslator {
             {"iatag_damage_PercentCurrentLife", "Life Reduction"},
 
             // HTML
+            {"iatag_html_locale", "en"},
             {"iatag_html_choose_a_relic", "Choose a Relic"},
             {"iatag_html_choose_a_recipe", "Choose a Recipe"},
             {"iatag_html_choose_a_component", "Choose a Component"},

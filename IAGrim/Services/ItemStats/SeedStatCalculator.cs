@@ -1,78 +1,85 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using GrimDawnItemStats;
 using IAGrim.Services.Dto;
 
-namespace IAGrim.Services.ItemStats {
-    /// <summary>
-    /// Bridges IA's raw <see cref="DBStatRow"/> stat rows to the seed-stat engine
-    /// (<see cref="GrimDawnItemStats.ItemStatEngine"/>).
-    ///
-    /// When an item has no game-provided replica stats (cloud/buddy synced items), we can still
-    /// reconstruct its real, seed-applied values by replaying the game's random stream over the
-    /// base/prefix/suffix records. This is used instead of displaying the item's raw base stats
-    /// with a "you are seeing base stats" warning.
-    /// </summary>
-    internal static class SeedStatCalculator {
+namespace IAGrim.Services.ItemStats;
 
-        /// <summary>
-        /// Rolls the item's real stats from its base/prefix/suffix stat rows and seed.
-        /// </summary>
-        /// <returns>
-        /// A map of stat-field to seed-applied value, or <c>null</c> when the roll can't be trusted
-        /// (no seed, no base rows, or the item carries rollable fields the engine does not model —
-        /// in which case downstream draws may be desynced and the caller should fall back to the
-        /// raw base stats).
-        /// </returns>
-        public static IReadOnlyDictionary<string, double>? Compute(
-            List<DBStatRow> baseRows,
-            List<DBStatRow> prefixRows,
-            List<DBStatRow> suffixRows,
-            uint seed) {
+/// <summary>
+/// Bridges raw database rows to the seed stat engine.
+/// </summary>
+internal static class SeedStatCalculator
+{
+    public static IReadOnlyDictionary<string, double>? Compute(
+        List<DBStatRow> baseRows,
+        List<DBStatRow> prefixRows,
+        List<DBStatRow> suffixRows,
+        uint seed)
+    {
+        if (seed == 0 || baseRows == null || baseRows.Count == 0)
+            return null;
 
-            if (seed == 0 || baseRows == null || baseRows.Count == 0) {
-                return null;
-            }
+        var result = ItemStatEngine.Compute(
+            ToInputStats(baseRows),
+            seed,
+            prefixStats: prefixRows != null && prefixRows.Count > 0 ? ToInputStats(prefixRows) : null,
+            suffixStats: suffixRows != null && suffixRows.Count > 0 ? ToInputStats(suffixRows) : null);
 
-            var result = ItemStatEngine.Compute(
-                ToInputStats(baseRows),
-                seed,
-                prefixStats: prefixRows != null && prefixRows.Count > 0 ? ToInputStats(prefixRows) : null,
-                suffixStats: suffixRows != null && suffixRows.Count > 0 ? ToInputStats(suffixRows) : null);
+        return result.UnmodeledFields.Count > 0 ? null : ExtractStats(result);
+    }
 
-            // Unmodeled rollable fields mean the shared random stream may have desynced, making every
-            // subsequent value unreliable. Rather than show wrong numbers, bail out so the caller
-            // keeps the raw base stats (and the warning).
-            if (result.UnmodeledFields.Count > 0) {
-                return null;
-            }
+    public static IReadOnlyDictionary<string, StatRange>? ComputeRanges(ItemRollSource source)
+    {
+        var result = ItemStatEngine.ComputeRange(
+            ToInputStats(source.BaseRows),
+            prefixStats: source.PrefixRows.Count > 0 ? ToInputStats(source.PrefixRows) : null,
+            suffixStats: source.SuffixRows.Count > 0 ? ToInputStats(source.SuffixRows) : null);
 
-            var stats = new Dictionary<string, double>(result.Stats.Count);
-            foreach (var kv in result.Stats) {
-                stats[kv.Key] = kv.Value;
-            }
+        if (result.Minimum.UnmodeledFields.Count > 0 || result.Maximum.UnmodeledFields.Count > 0)
+            return null;
 
-            // "N% Chance of ..." proc lines are split off from the merged totals; fold their rolled
-            // value back in so the stat still shows (IA has no separate proc-line rendering here).
-            if (result.ProcLines != null) {
-                foreach (var p in result.ProcLines) {
-                    if (p.Min is { } min) {
-                        stats[p.Field] = stats.TryGetValue(p.Field, out var existing) ? existing + min : min;
-                    }
-                }
-            }
+        var minimum = ExtractStats(result.Minimum);
+        var maximum = ExtractStats(result.Maximum);
+        var ranges = new Dictionary<string, StatRange>(StringComparer.Ordinal);
 
+        foreach (var field in minimum.Keys.Intersect(maximum.Keys))
+        {
+            double lower = Math.Min(minimum[field], maximum[field]);
+            double upper = Math.Max(minimum[field], maximum[field]);
+            if (Math.Abs(upper - lower) > 0.000001)
+                ranges[field] = new StatRange(lower, upper);
+        }
+
+        return ranges;
+    }
+
+    private static Dictionary<string, double> ExtractStats(ItemStatEngine.Result result)
+    {
+        var stats = new Dictionary<string, double>(result.Stats, StringComparer.Ordinal);
+
+        if (result.ProcLines == null)
             return stats;
+
+        foreach (var procLine in result.ProcLines)
+        {
+            if (procLine.Min is not { } minimum)
+                continue;
+
+            stats[procLine.Field] = stats.TryGetValue(procLine.Field, out var existing)
+                ? existing + minimum
+                : minimum;
         }
 
-        private static IEnumerable<ItemStatEngine.InputStat> ToInputStats(IEnumerable<DBStatRow> rows) {
-            // Multiple arz records (base + expansions) can carry the same field; take the highest
-            // value per field, mirroring the Filter() the stat service already applies.
-            return rows
-                .Where(r => r.Stat != null)
-                .GroupBy(r => r.Stat)
-                .Select(g => g.OrderByDescending(r => r.Value).First())
-                .Select(r => new ItemStatEngine.InputStat(r.Stat!, r.TextValue ?? string.Empty, r.Value));
-        }
+        return stats;
+    }
+
+    private static IEnumerable<ItemStatEngine.InputStat> ToInputStats(IEnumerable<DBStatRow> rows)
+    {
+        return rows
+            .Where(row => row.Stat != null)
+            .GroupBy(row => row.Stat)
+            .Select(group => group.OrderByDescending(row => row.Value).First())
+            .Select(row => new ItemStatEngine.InputStat(row.Stat!, row.TextValue ?? string.Empty, row.Value));
     }
 }

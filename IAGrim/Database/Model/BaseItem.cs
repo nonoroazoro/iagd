@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using DataAccess;
 using IAGrim.Services.Dto;
+using IAGrim.Services.ItemStats;
 using IAGrim.Utilities;
 using StatTranslator;
 
@@ -26,6 +27,7 @@ namespace IAGrim.Database.Model {
             get;
             set;
         }
+        public virtual ItemRollSource? RollSource { get; set; }
 
 
         public virtual IList<TranslatedStat> PetStats {
