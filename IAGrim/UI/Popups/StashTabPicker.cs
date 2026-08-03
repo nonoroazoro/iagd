@@ -35,7 +35,7 @@ namespace IAGrim.UI.Popups {
             }
         }
         
-        private FirefoxRadioButton CreateCheckbox(string name, string label, string text, Point position, FirefoxRadioButton.CheckedChangedEventHandler callback) {
+        private FirefoxRadioButton CreateCheckbox(string name, string label, string text, Point position, Size size, FirefoxRadioButton.CheckedChangedEventHandler callback) {
             FirefoxRadioButton checkbox = new FirefoxRadioButton();
             checkbox.Bold = false;
             checkbox.Checked = false;
@@ -44,7 +44,7 @@ namespace IAGrim.UI.Popups {
             checkbox.ForeColor = Color.FromArgb(((int) (((byte) (66)))), ((int) (((byte) (78)))), ((int) (((byte) (90)))));
             checkbox.Location = position;
             checkbox.Name = name;
-            checkbox.Size = new Size(188, 27);
+            checkbox.Size = size;
             checkbox.TabIndex = 3;
             checkbox.Tag = label;
             checkbox.Text = text;
@@ -53,10 +53,15 @@ namespace IAGrim.UI.Popups {
         }
 
         private void StashTabPicker_Load(object sender, EventArgs e) {
-            // Calculate the height dynamically depending on how many stashes the user has
-            Height = Math.Min(800, Math.Max(357, 202 + 31 * _numStashTabs));
-            gbMoveTo.Height = Math.Max(248, 83 + 33 * _numStashTabs);
-            gbLootFrom.Height = Math.Max(248, 83 + 33 * _numStashTabs);
+            var scaleX = radioOutputSecondToLast.Width / 188F;
+            var scaleY = radioOutputSecondToLast.Height / 27F;
+            int ScaleX(int value) => (int)Math.Round(value * scaleX);
+            int ScaleY(int value) => (int)Math.Round(value * scaleY);
+
+            // Calculate the height dynamically depending on how many stashes the user has.
+            Height = ScaleY(Math.Min(800, Math.Max(357, 202 + 31 * _numStashTabs)));
+            gbMoveTo.Height = ScaleY(Math.Max(248, 83 + 33 * _numStashTabs));
+            gbLootFrom.Height = ScaleY(Math.Max(248, 83 + 33 * _numStashTabs));
 
 
             for (int i = 1; i <= Math.Max(5, _numStashTabs); i++) {
@@ -68,8 +73,8 @@ namespace IAGrim.UI.Popups {
                     }
                 };
 
-                int y = 32 + 33 * i;
-                var cb = CreateCheckbox($"moveto_tab_{i}", $"iatag_ui_tab_{i}", $"Tab {i}", new Point(6, y), callback);
+                int y = ScaleY(32 + 33 * i);
+                var cb = CreateCheckbox($"moveto_tab_{i}", $"iatag_ui_tab_{i}", $"Tab {i}", new Point(ScaleX(6), y), new Size(ScaleX(188), ScaleY(27)), callback);
                 
                 cb.Checked = _settings.GetLocal().StashToDepositTo == i;
                 cb.Enabled = i <= _numStashTabs;
@@ -88,8 +93,8 @@ namespace IAGrim.UI.Popups {
                     }
                 };
 
-                int y = 32 + 33 * i;
-                var cb = CreateCheckbox($"lootfrom_tab_{i}", $"iatag_ui_tab_{i}", $"Tab {i}", new Point(6, y), callback);
+                int y = ScaleY(32 + 33 * i);
+                var cb = CreateCheckbox($"lootfrom_tab_{i}", $"iatag_ui_tab_{i}", $"Tab {i}", new Point(ScaleX(6), y), new Size(ScaleX(188), ScaleY(27)), callback);
                 cb.Checked = _settings.GetLocal().StashToLootFrom == i;
                 cb.Enabled = i <= _numStashTabs;
                 cb.EnabledCalc = i <= _numStashTabs;

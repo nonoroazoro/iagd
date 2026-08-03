@@ -40,7 +40,7 @@
             groupBox1.Margin = new Padding(4, 3, 4, 3);
             groupBox1.Name = "groupBox1";
             groupBox1.Padding = new Padding(4, 3, 4, 3);
-            groupBox1.Size = new Size(936, 307);
+            groupBox1.Size = new Size(936, 356);
             groupBox1.TabIndex = 3;
             groupBox1.TabStop = false;
             groupBox1.Tag = "iatag_ui_language_selection";
@@ -60,9 +60,9 @@
             // 
             // lblWarning
             // 
-            lblWarning.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            lblWarning.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             lblWarning.AutoSize = true;
-            lblWarning.Location = new Point(9, 520);
+            lblWarning.Location = new Point(9, 371);
             lblWarning.Margin = new Padding(4, 0, 4, 0);
             lblWarning.Name = "lblWarning";
             lblWarning.Size = new Size(194, 15);
@@ -81,7 +81,7 @@
             buttonSelect.ForeColor = Color.FromArgb(56, 68, 80);
             buttonSelect.HoverColor = Color.FromArgb(232, 232, 232);
             buttonSelect.HoverForeColor = Color.FromArgb(193, 193, 193);
-            buttonSelect.Location = new Point(6, 357);
+            buttonSelect.Location = new Point(6, 406);
             buttonSelect.Margin = new Padding(4, 3, 4, 3);
             buttonSelect.Name = "buttonSelect";
             buttonSelect.Size = new Size(939, 40);
@@ -94,19 +94,19 @@
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(959, 411);
+            ClientSize = new Size(959, 460);
             Controls.Add(lblWarning);
             Controls.Add(groupBox1);
             Controls.Add(buttonSelect);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
+            FormBorderStyle = FormBorderStyle.Sizable;
             Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(4, 3, 4, 3);
-            MaximizeBox = false;
-            MaximumSize = new Size(975, 450);
+            MaximizeBox = true;
+            MaximumSize = new Size(0, 0);
             MinimizeBox = false;
-            MinimumSize = new Size(975, 450);
+            MinimumSize = new Size(700, 499);
             Name = "LanguagePackPicker";
-            Opacity = 0.95D;
+            Opacity = 1D;
             StartPosition = FormStartPosition.CenterParent;
             SizeGripStyle = SizeGripStyle.Hide;
             Tag = "iatag_ui_change_language";

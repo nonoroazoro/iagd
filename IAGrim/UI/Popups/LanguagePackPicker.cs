@@ -77,6 +77,20 @@ namespace IAGrim.UI {
         private void LanguagePackPicker_Load(object sender, EventArgs e) {
             LocalizationLoader.ApplyLanguage(Controls, RuntimeSettings.Language!);
 
+            var scaleX = pictureBox1.Width / 120F;
+            var scaleY = pictureBox1.Height / 119F;
+            int ScaleX(int value) => (int)Math.Round(value * scaleX);
+            int ScaleY(int value) => (int)Math.Round(value * scaleY);
+            var languageList = new Panel {
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                AutoScroll = true,
+                Location = new Point(ScaleX(4), ScaleY(18)),
+                Size = new Size(
+                    pictureBox1.Left - ScaleX(8),
+                    groupBox1.ClientSize.Height - ScaleY(22))
+            };
+            groupBox1.Controls.Add(languageList);
+
             var n = 0;
             var currentCode = _settings.GetLocal().LanguageCode;
             var availableCodes = LanguageMapping.GetAvailableLanguages(_paths ?? Enumerable.Empty<string>()).ToList();
@@ -95,29 +109,24 @@ namespace IAGrim.UI {
                 var prefix = isFullySupported ? "" : "[Partial] ";
 
                 var cb = new FirefoxRadioButton {
-                    Location = new Point(10, 25 + n * 33),
+                    Location = new Point(ScaleX(6), ScaleY(6 + n * 33)),
                     Text = prefix + displayName,
                     Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top,
-                    Width = groupBox1.Width - pictureBox1.Width,
+                    Size = new Size(
+                        languageList.ClientSize.Width - ScaleX(12) - SystemInformation.VerticalScrollBarWidth,
+                        ScaleY(27)),
                     Tag = code,
                     Checked = code.Equals(currentCode, StringComparison.OrdinalIgnoreCase),
                     TabIndex = n,
                     TabStop = true
                 };
 
-                groupBox1.Controls.Add(cb);
+                languageList.Controls.Add(cb);
                 _checkboxes.Add(cb);
                 n++;
             }
 
-            var delta = Math.Min(Math.Max(0, n - 5), 15) * 33;
-            if (delta > 0) {
-                var newHeight = Height + delta;
-                MaximumSize = new Size(MaximumSize.Width, newHeight);
-                MinimumSize = new Size(MinimumSize.Width, newHeight);
-                Height = newHeight;
-                lblWarning.Location = new Point(lblWarning.Location.X, lblWarning.Location.Y + delta);
-            }
+            languageList.AutoScrollMinSize = new Size(0, ScaleY(12 + n * 33));
         }
 
         private void LanguagePackPicker_FormClosing(object sender, FormClosingEventArgs e) {

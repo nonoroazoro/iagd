@@ -37,6 +37,7 @@
             // 
             // gbMoveTo
             // 
+            this.gbMoveTo.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left;
             this.gbMoveTo.Controls.Add(this.radioOutputSecondToLast);
             this.gbMoveTo.Location = new System.Drawing.Point(12, 12);
             this.gbMoveTo.Name = "gbMoveTo";
@@ -63,6 +64,7 @@
             // 
             // gbLootFrom
             // 
+            this.gbLootFrom.Anchor = System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right;
             this.gbLootFrom.Controls.Add(this.helpWhyAreTheseDisabled);
             this.gbLootFrom.Controls.Add(this.radioInputLast);
             this.gbLootFrom.Location = new System.Drawing.Point(238, 12);
@@ -144,7 +146,8 @@
             this.Controls.Add(this.buttonClose);
             this.Controls.Add(this.gbLootFrom);
             this.Controls.Add(this.gbMoveTo);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedToolWindow;
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.SizableToolWindow;
+            this.MinimumSize = new System.Drawing.Size(474, 357);
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.Name = "StashTabPicker";
             this.ShowInTaskbar = false;
