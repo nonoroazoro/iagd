@@ -401,6 +401,7 @@ bin
 /IDA
 /Website
 /current-cefsharp-hash.txt
+/.tools/
 /WebUI/size-plugin.json
 /WebUI/src/assets/*.png
 /WebUI/src/static

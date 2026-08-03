@@ -30,6 +30,15 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'build',
+    emptyOutDir: true,
+    // This WebUI is embedded locally, so output names must remain stable across builds.
+    rollupOptions: {
+      output: {
+        entryFileNames: 'assets/index.js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name][extname]',
+      },
+    },
   },
   server: {
     port: 3000,

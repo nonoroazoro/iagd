@@ -2,6 +2,8 @@
 
 For a binary download, see https://grimdawn.evilsoft.net
 
+For source build and ZIP packaging instructions, see [BUILDING.md](BUILDING.md).
+
 
 
 ## Issues running this project?

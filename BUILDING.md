@@ -1,0 +1,41 @@
+# Building and Packaging
+
+## Requirements
+
+- Windows
+- PowerShell
+- Node.js and npm available through `PATH`
+- Visual Studio MSBuild available through `PATH`
+- Visual C++ build tools and a Windows 10 SDK
+- .NET SDK 10
+- Boost 1.78.0 headers and x64 compiled libraries
+
+The package script prefers `.tools/dotnet/dotnet.exe` when present. Otherwise, it uses `dotnet` from `PATH`.
+
+For Boost, either place one `boost_*` directory under `.tools`, or set `BOOST` to the Boost root. If the Boost root contains more than one `lib64-msvc-*` directory, set `BOOST_LIBRARYDIR` to the directory matching the active compiler.
+
+The `.tools` directory is ignored by Git and must not be committed.
+
+## Package
+
+Run from the repository root:
+
+```powershell
+.\build-package.ps1
+```
+
+The script builds the managed application, lints and builds WebUI, rebuilds both x64 hook variants, and writes a verified ZIP under `artifacts`.
+
+Dependency installation is opt-in:
+
+```powershell
+.\build-package.ps1 -InstallDependencies
+```
+
+To reuse existing hook DLLs without rebuilding native code:
+
+```powershell
+.\build-package.ps1 -SkipHookBuild
+```
+
+The script does not overwrite an existing ZIP and does not include `UserData` or PDB files.

@@ -21,7 +21,8 @@ Unless you plan to actively develop the DLL, there is no need to compile it your
 ## Compilation 
 The DLL uses C++ and Assembly.
 
-[Boost](https://sourceforge.net/projects/boost/files/boost-binaries/1.78.0/) is assumed to be located at $(BOOST), so lib files at $(BOOST)\lib64-msvc-14.0
+[Boost](https://sourceforge.net/projects/boost/files/boost-binaries/1.78.0/) headers are located through `BOOST` and compiled libraries through `BOOST_LIBRARYDIR`.
+The package script discovers a single `lib64-msvc-*` directory below `BOOST` automatically.
 
 
 # Flow
