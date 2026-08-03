@@ -141,6 +141,19 @@ if (-not $SkipHookBuild) {
     $windowsSdkVersion = $windowsSdkCandidates[0].Name
 }
 
+$repositoryFullPath = [IO.Path]::GetFullPath($repositoryRoot).TrimEnd('\', '/')
+$artifactFullPath = [IO.Path]::GetFullPath($artifactRoot).TrimEnd('\', '/')
+$artifactParentPath = [IO.Directory]::GetParent($artifactFullPath).FullName.TrimEnd('\', '/')
+if (-not $artifactParentPath.Equals($repositoryFullPath, [StringComparison]::OrdinalIgnoreCase) -or
+    -not [IO.Path]::GetFileName($artifactFullPath).Equals('artifacts', [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to clear an unexpected artifact directory: $artifactFullPath"
+}
+
+if (Test-Path -LiteralPath $artifactFullPath -PathType Container) {
+    Remove-Item -LiteralPath $artifactFullPath -Recurse -Force
+}
+[IO.Directory]::CreateDirectory($artifactFullPath) | Out-Null
+
 & $pathDotnet build $solutionPath --configuration Release
 if ($LASTEXITCODE -ne 0) {
     throw ".NET build failed with exit code $LASTEXITCODE."
@@ -194,7 +207,6 @@ if (Test-Path -LiteralPath $zipPath) {
     throw "Output already exists and will not be overwritten: $zipPath"
 }
 
-[IO.Directory]::CreateDirectory($artifactRoot) | Out-Null
 $webFiles = @(Get-ChildItem -LiteralPath $webBuildRoot -Recurse -File)
 $webTargets = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 foreach ($file in $webFiles) {

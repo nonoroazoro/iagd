@@ -38,4 +38,4 @@ To reuse existing hook DLLs without rebuilding native code:
 .\build-package.ps1 -SkipHookBuild
 ```
 
-The script does not overwrite an existing ZIP and does not include `UserData` or PDB files.
+Before building, the script verifies and clears only the repository `artifacts` directory. Generated ZIP files do not include `UserData` or PDB files.
