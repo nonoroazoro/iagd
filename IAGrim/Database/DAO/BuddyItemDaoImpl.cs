@@ -705,7 +705,15 @@ namespace IAGrim.Database {
                                 BI.{BuddyItemsTable.SubscriptionId} as BuddyId,
                                 S.{BuddySubscriptionTable.Nickname} as Stash,
                                 coalesce((SELECT group_concat(Record, '|') FROM {BuddyItemRecordTable.Table} pir WHERE pir.{BuddyItemRecordTable.Item} = BI.{BuddyItemsTable.RemoteItemId} AND NOT {BuddyItemRecordTable.Record} IN (BI.BaseRecord, BI.SuffixRecord, BI.MateriaRecord, BI.PrefixRecord)), '') AS PetRecord,
-                                IFNULL((select json_group_array(json_object('text', text, 'type', type)) from ReplicaItemRow where replicaitemid = R.id), '[]') AS ReplicaInfo
+                                IFNULL((
+                                    SELECT json_group_array(json_object('text', Text, 'type', Type))
+                                    FROM (
+                                        SELECT Text, Type
+                                        FROM ReplicaItemRow
+                                        WHERE ReplicaItemId = R.Id
+                                        ORDER BY Id
+                                    )
+                                ), '[]') AS ReplicaInfo
                 FROM {BuddyItemsTable.Table} BI, {BuddySubscriptionTable.Table} S 
                 LEFT OUTER JOIN ReplicaItem2 R ON BI.{BuddyItemsTable.RemoteItemId} = R.buddyitemid
                 WHERE "

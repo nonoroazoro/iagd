@@ -1112,7 +1112,15 @@ namespace IAGrim.Database {
             const string sql = @"
                 SELECT PI.Id as Id,
                 coalesce((SELECT group_concat(Record, '|') FROM PlayerItemRecord pir WHERE pir.PlayerItemId = PI.Id AND NOT Record IN (PI.BaseRecord, PI.SuffixRecord, PI.MateriaRecord, PI.PrefixRecord, PI.AscendantAffixNameRecord, PI.AscendantAffix2hNameRecord)), '') AS PetRecord,
-                IFNULL((select json_group_array(json_object('text', text, 'type', type)) from ReplicaItemRow where replicaitemid = R.id), '[]') AS ReplicaInfo
+                IFNULL((
+                    SELECT json_group_array(json_object('text', Text, 'type', Type))
+                    FROM (
+                        SELECT Text, Type
+                        FROM ReplicaItemRow
+                        WHERE ReplicaItemId = R.Id
+                        ORDER BY Id
+                    )
+                ), '[]') AS ReplicaInfo
                 FROM PlayerItem PI
                 LEFT OUTER JOIN ReplicaItem2 R ON PI.ID = R.playeritemid
                 WHERE PI.Id IN ( :ids )

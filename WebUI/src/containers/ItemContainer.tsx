@@ -165,8 +165,6 @@ class ItemContainer extends PureComponent<Props, object> {
           {this.state.isComparing && <ItemComparer
               item={comparingItem}
               onClose={this.handleClick}
-              getItemName={(baseRecord:string) => this.findByRecord(baseRecord)}
-              showBackupCloudIcon={this.props.showBackupCloudIcon}
               transferSingle={(item: IItem) => this.transferSingle(item)}
           />}
 

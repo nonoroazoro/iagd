@@ -1,7 +1,5 @@
-import { h } from 'preact';
 import { PureComponent } from 'preact/compat';
 import IItem from '../../interfaces/IItem';
-import ICollectionItem from '../../interfaces/ICollectionItem';
 import IItemType from '../../interfaces/IItemType';
 import { statToString } from '../../interfaces/IStat';
 import type { IRollStat } from '../../interfaces';
@@ -15,12 +13,6 @@ interface Props {
   item: IItem[];
   transferSingle: (item: IItem) => void;
   onClose: () => void;
-  showBackupCloudIcon: boolean;
-  getItemName: (baseRecord: string) => ICollectionItem;
-}
-
-interface State {
-  rightIndex: number;
 }
 
 interface ComparisonEntry {
@@ -29,15 +21,26 @@ interface ComparisonEntry {
   rightText: string | null;
   leftRoll: IRollStat | null;
   rightRoll: IRollStat | null;
+  rawDifference: number | null;
+  qualityDifference: number | null;
 }
 interface MultiComparisonValue {
   text: string;
   roll: IRollStat | null;
+  comparable: boolean;
+}
+
+interface ItemComparisonRow extends MultiComparisonValue {
+  key: string;
 }
 
 interface MultiComparisonEntry {
   key: string;
   values: Array<MultiComparisonValue | null>;
+  metrics: Array<number | null>;
+  best: number | null;
+  worst: number | null;
+  hasDifference: boolean;
 }
 
 interface RankedItem {
@@ -46,12 +49,8 @@ interface RankedItem {
   advantages: number;
 }
 
-class ItemComparer extends PureComponent<Props, State> {
+class ItemComparer extends PureComponent<Props> {
   private _dialog: HTMLDivElement | null = null;
-
-  state: State = {
-    rightIndex: 1,
-  };
 
   componentDidMount() {
     this._dialog?.focus();
@@ -75,107 +74,208 @@ class ItemComparer extends PureComponent<Props, State> {
     return text.replace(/\{?\^.[}]?/g, '').trim();
   };
 
-  private _getRows = (item: IItem) => {
-    if (item.replicaStats && item.replicaStats.length > 0) {
-      return item.replicaStats
-        .filter((row) => row.type !== 0 && !(row.type >= 20 && row.type <= 26))
-        .map((row) => this._stripColorCodes(row.text))
-        .filter((text) => text.length > 0);
-    }
-
-    return [...item.headerStats, ...item.bodyStats, ...item.petStats]
-      .map(statToString)
-      .map(this._stripColorCodes)
-      .filter((text) => text.length > 0);
+  private _getRowKey = (text: string, type?: number, section = 'item') => {
+    return type === 5 ? 'item-name' : `${section}:${normalizeRollText(text)}`;
   };
 
-  private _getRowKey = (text: string) => normalizeRollText(text);
+  private _getRows = (item: IItem): ItemComparisonRow[] => {
+    if (item.replicaStats && item.replicaStats.length > 0) {
+      const rows: Array<{text: string; type: number; section: string}> = [];
+      let section = 'item';
+      let isGrantedSkill = false;
+      let grantedSkillSeparators = 0;
+
+      item.replicaStats.forEach((row, index) => {
+        if (row.type === 36) {
+          isGrantedSkill = true;
+          grantedSkillSeparators = 0;
+          section = 'granted-skill';
+          const text = this._stripColorCodes(row.text);
+          if (text.length > 0) {
+            rows.push({ text, type: row.type, section });
+          }
+          return;
+        }
+
+        if (isGrantedSkill) {
+          if (row.type === 0) {
+            grantedSkillSeparators += 1;
+            if (grantedSkillSeparators >= 2) {
+              isGrantedSkill = false;
+              section = 'item';
+            }
+            return;
+          }
+
+          const text = this._stripColorCodes(row.text);
+          if (section === 'granted-skill' && text.length > 0) {
+            section = `granted-skill:${normalizeRollText(text)}`;
+          }
+          if (text.length > 0) {
+            rows.push({ text, type: row.type, section });
+          }
+          return;
+        }
+
+        if (row.type === 0 || row.type === 1) {
+          section = 'item';
+          return;
+        }
+
+        const nextType = item.replicaStats?.[index + 1]?.type;
+        const isModifiedSkillHeader = (row.type === 37 && nextType === 26)
+          || (row.type === 81 && nextType === 82);
+        const text = this._stripColorCodes(row.text);
+        if (isModifiedSkillHeader) {
+          section = `modified-skill:${normalizeRollText(text)}`;
+        }
+        if (text.length > 0) {
+          rows.push({ text, type: row.type, section });
+        }
+      });
+
+      const rolls = this._getRollsForRows(item, rows.map((row) => row.text));
+      return rows.map((row, index) => ({
+        key: this._getRowKey(row.text, row.type, row.section),
+        text: row.text,
+        roll: rolls[index],
+        comparable: !row.section.startsWith('granted-skill'),
+      }));
+    }
+
+    const rows = [
+      ...item.headerStats.map((stat) => ({ text: statToString(stat), section: 'header' })),
+      ...item.bodyStats.map((stat) => ({ text: statToString(stat), section: 'body' })),
+      ...item.petStats.map((stat) => ({ text: statToString(stat), section: 'pet' })),
+    ]
+      .map((row) => ({ ...row, text: this._stripColorCodes(row.text) }))
+      .filter((row) => row.text.length > 0);
+    const rolls = this._getRollsForRows(item, rows.map((row) => row.text));
+    return rows.map((row, index) => ({
+      key: this._getRowKey(row.text, undefined, row.section),
+      text: row.text,
+      roll: rolls[index],
+      comparable: true,
+    }));
+  };
 
   private _getRollsForRows = (item: IItem, rows: string[]) => matchRollStats(rows, item.rollStats);
 
   private _createComparison = (left: IItem, right: IItem) => {
-    const leftRows = this._getRows(left);
-    const rightRows = this._getRows(right);
-    const leftRolls = this._getRollsForRows(left, leftRows);
-    const rightRolls = this._getRollsForRows(right, rightRows);
-    const rightBuckets = new Map<string, number[]>();
+    return this._createMultiComparison([left, right]).map((entry): ComparisonEntry => {
+      const leftValue = entry.values[0] ?? null;
+      const rightValue = entry.values[1] ?? null;
+      const leftMetric = entry.metrics[0];
+      const rightMetric = entry.metrics[1];
+      const rawDifference = this._getRawDifference(leftMetric, rightMetric);
+      let qualityDifference = rawDifference;
 
-    rightRows.forEach((text, index) => {
-      const key = this._getRowKey(text);
-      const bucket = rightBuckets.get(key) ?? [];
-      bucket.push(index);
-      rightBuckets.set(key, bucket);
-    });
-
-    const usedRightRows = new Set<number>();
-    const entries: ComparisonEntry[] = leftRows.map((leftText, index) => {
-      const key = this._getRowKey(leftText);
-      const bucket = rightBuckets.get(key) ?? [];
-      const rightIndex = bucket.find((candidate) => !usedRightRows.has(candidate));
-
-      if (rightIndex === undefined) {
-        return {
-          key: `left-${key}-${index}`,
-          leftText,
-          rightText: null,
-          leftRoll: leftRolls[index],
-          rightRoll: null,
-        };
+      if (leftMetric !== null && rightMetric === null) {
+        qualityDifference = -1;
+      } else if (leftMetric === null && rightMetric !== null) {
+        qualityDifference = 1;
+      } else if (rawDifference !== null && this._isLowerBetterText(`${leftValue?.text ?? ''} ${rightValue?.text ?? ''}`)) {
+        qualityDifference = -rawDifference;
       }
 
-      usedRightRows.add(rightIndex);
       return {
-        key: `pair-${key}-${index}`,
-        leftText,
-        rightText: rightRows[rightIndex],
-        leftRoll: leftRolls[index],
-        rightRoll: rightRolls[rightIndex],
+        key: entry.key,
+        leftText: leftValue?.text ?? null,
+        rightText: rightValue?.text ?? null,
+        leftRoll: leftValue?.roll ?? null,
+        rightRoll: rightValue?.roll ?? null,
+        rawDifference,
+        qualityDifference,
       };
     });
+  };
 
-    rightRows.forEach((rightText, index) => {
-      if (!usedRightRows.has(index)) {
-        entries.push({
-          key: `right-${this._getRowKey(rightText)}-${index}`,
-          leftText: null,
-          rightText,
-          leftRoll: null,
-          rightRoll: rightRolls[index],
-        });
-      }
+  private _mergeRowOrder = (sequences: string[][]) => {
+    const longest = sequences.reduce(
+      (current, sequence) => sequence.length > current.length ? sequence : current,
+      [] as string[],
+    );
+    const orderedKeys = [...longest];
+    const knownKeys = new Set(orderedKeys);
+
+    sequences.forEach((sequence) => {
+      sequence.forEach((key, index) => {
+        if (knownKeys.has(key)) {
+          return;
+        }
+
+        let nextKey: string | undefined;
+        for (let candidateIndex = index + 1; candidateIndex < sequence.length; candidateIndex += 1) {
+          if (knownKeys.has(sequence[candidateIndex])) {
+            nextKey = sequence[candidateIndex];
+            break;
+          }
+        }
+
+        if (nextKey !== undefined) {
+          orderedKeys.splice(orderedKeys.indexOf(nextKey), 0, key);
+        } else {
+          let previousKey: string | undefined;
+          for (let candidateIndex = index - 1; candidateIndex >= 0; candidateIndex -= 1) {
+            if (knownKeys.has(sequence[candidateIndex])) {
+              previousKey = sequence[candidateIndex];
+              break;
+            }
+          }
+          const insertionIndex = previousKey === undefined
+            ? orderedKeys.length
+            : orderedKeys.indexOf(previousKey) + 1;
+          orderedKeys.splice(insertionIndex, 0, key);
+        }
+        knownKeys.add(key);
+      });
     });
 
-    return entries;
+    return orderedKeys;
   };
 
   private _createMultiComparison = (items: IItem[]) => {
-    const orderedKeys: string[] = [];
-    const knownKeys = new Set<string>();
+    const sequences: string[][] = [];
     const valuesByItem = items.map((item) => {
       const rows = this._getRows(item);
-      const rolls = this._getRollsForRows(item, rows);
       const occurrences = new Map<string, number>();
       const values = new Map<string, MultiComparisonValue>();
+      const sequence: string[] = [];
 
-      rows.forEach((text, index) => {
-        const rowKey = this._getRowKey(text);
+      rows.forEach((row) => {
+        const rowKey = row.key;
         const occurrence = occurrences.get(rowKey) ?? 0;
         occurrences.set(rowKey, occurrence + 1);
         const key = `${rowKey}\u0000${occurrence}`;
-        values.set(key, { text, roll: rolls[index] });
-        if (!knownKeys.has(key)) {
-          knownKeys.add(key);
-          orderedKeys.push(key);
-        }
+        values.set(key, row);
+        sequence.push(key);
       });
 
+      sequences.push(sequence);
       return values;
     });
+    const orderedKeys = this._mergeRowOrder(sequences);
 
-    return orderedKeys.map((key): MultiComparisonEntry => ({
-      key,
-      values: valuesByItem.map((values) => values.get(key) ?? null),
-    }));
+    return orderedKeys.reduce<MultiComparisonEntry[]>((entries, key) => {
+      const values = valuesByItem.map((itemValues) => itemValues.get(key) ?? null);
+      const metrics = values.map((value) => value?.comparable
+        ? this._getMetric(value.text)
+        : null);
+      const comparable = metrics.filter((metric): metric is number => metric !== null);
+      const lowerIsBetter = this._isLowerBetterText(values.map((value) => value?.text ?? '').join(' '));
+      const best = comparable.length === 0
+        ? null
+        : lowerIsBetter ? Math.min(...comparable) : Math.max(...comparable);
+      const worst = comparable.length === 0
+        ? null
+        : lowerIsBetter ? Math.max(...comparable) : Math.min(...comparable);
+      const hasDifference = best !== null
+        && worst !== null
+        && (comparable.length < values.length || Math.abs(best - worst) >= 0.000001);
+
+      entries.push({ key, values, metrics, best, worst, hasDifference });
+      return entries;
+    }, []);
   };
 
   private _isLowerBetterText = (text: string) => {
@@ -186,21 +286,12 @@ class ItemComparer extends PureComponent<Props, State> {
     const advantages = items.map(() => 0);
 
     entries.forEach((entry) => {
-      const lowerIsBetter = this._isLowerBetterText(entry.values.map((value) => value?.text ?? '').join(' '));
-      const metrics = entry.values.map((value) => this._getMetric(value?.text ?? null));
-      const comparable = metrics.filter((metric): metric is number => metric !== null);
-      if (comparable.length !== items.length) {
+      if (!entry.hasDifference || entry.best === null) {
         return;
       }
 
-      const best = lowerIsBetter ? Math.min(...comparable) : Math.max(...comparable);
-      const worst = lowerIsBetter ? Math.max(...comparable) : Math.min(...comparable);
-      if (Math.abs(best - worst) < 0.000001) {
-        return;
-      }
-
-      metrics.forEach((metric, index) => {
-        if (metric !== null && Math.abs(metric - best) < 0.000001) {
+      entry.metrics.forEach((metric, index) => {
+        if (metric !== null && Math.abs(metric - entry.best) < 0.000001) {
           advantages[index] += 1;
         }
       });
@@ -212,23 +303,17 @@ class ItemComparer extends PureComponent<Props, State> {
   };
 
   private _getMultiValueClass = (entry: MultiComparisonEntry, itemIndex: number) => {
-    const lowerIsBetter = this._isLowerBetterText(entry.values.map((value) => value?.text ?? '').join(' '));
-    const metrics = entry.values.map((value) => this._getMetric(value?.text ?? null));
-    const metric = metrics[itemIndex];
-    const comparable = metrics.filter((value): value is number => value !== null);
-    if (metric === null || comparable.length !== entry.values.length) {
+    if (!entry.hasDifference || entry.best === null || entry.worst === null) {
       return styles.neutral;
     }
-
-    const best = lowerIsBetter ? Math.min(...comparable) : Math.max(...comparable);
-    const worst = lowerIsBetter ? Math.max(...comparable) : Math.min(...comparable);
-    if (Math.abs(best - worst) < 0.000001) {
-      return styles.neutral;
+    const metric = entry.metrics[itemIndex];
+    if (metric === null) {
+      return styles.worse;
     }
-    if (Math.abs(metric - best) < 0.000001) {
+    if (Math.abs(metric - entry.best) < 0.000001) {
       return styles.better;
     }
-    if (Math.abs(metric - worst) < 0.000001) {
+    if (Math.abs(metric - entry.worst) < 0.000001) {
       return styles.worse;
     }
     return styles.neutral;
@@ -309,29 +394,12 @@ class ItemComparer extends PureComponent<Props, State> {
     return value ? Number(value[0]) : null;
   };
 
-  private _getRawDifference = (entry: ComparisonEntry) => {
-    const left = this._getMetric(entry.leftText);
-    const right = this._getMetric(entry.rightText);
-
+  private _getRawDifference = (left: number | null, right: number | null) => {
     if (left === null || right === null || Math.abs(left) < 0.000001 || Math.abs(left - right) < 0.000001) {
       return null;
     }
 
     return ((right - left) / Math.abs(left)) * 100;
-  };
-
-  private _isLowerBetter = (entry: ComparisonEntry) => {
-    const text = `${entry.leftText ?? ''} ${entry.rightText ?? ''}`;
-    return this._isLowerBetterText(text);
-  };
-
-  private _getQualityDifference = (entry: ComparisonEntry) => {
-    const difference = this._getRawDifference(entry);
-    if (difference === null) {
-      return null;
-    }
-
-    return this._isLowerBetter(entry) ? -difference : difference;
   };
 
   private _formatDifference = (difference: number | null) => {
@@ -403,22 +471,15 @@ class ItemComparer extends PureComponent<Props, State> {
     }
 
     const leftItem = items[0];
-    const safeRightIndex = Math.min(Math.max(this.state.rightIndex, 1), Math.max(items.length - 1, 1));
-    const rightItem = items[safeRightIndex];
+    const rightItem = items[1];
 
     if (!leftItem || !rightItem) {
       return null;
     }
 
     const entries = this._createComparison(leftItem, rightItem);
-    const leftWins = entries.filter((entry) => {
-      const difference = this._getQualityDifference(entry);
-      return difference !== null && difference < 0;
-    }).length;
-    const rightWins = entries.filter((entry) => {
-      const difference = this._getQualityDifference(entry);
-      return difference !== null && difference > 0;
-    }).length;
+    const leftWins = entries.filter((entry) => entry.qualityDifference !== null && entry.qualityDifference < 0).length;
+    const rightWins = entries.filter((entry) => entry.qualityDifference !== null && entry.qualityDifference > 0).length;
 
     return (
       <div
@@ -446,24 +507,6 @@ class ItemComparer extends PureComponent<Props, State> {
         </header>
 
         <div className={styles.content}>
-          {items.length > 2 && (
-            <nav className={styles.candidateTabs} aria-label={localize('Select the right-side candidate item', '选择右侧候选物品')}>
-              {items.slice(1).map((item, index) => {
-                const candidateIndex = index + 1;
-                return (
-                  <button
-                    type="button"
-                    key={`${item.uniqueIdentifier || item.mergeIdentifier}-${candidateIndex}`}
-                    className={candidateIndex === safeRightIndex ? styles.activeCandidate : ''}
-                    onClick={() => this.setState({ rightIndex: candidateIndex })}
-                  >
-                    {localize(`Candidate ${candidateIndex}`, `候选 ${candidateIndex}`)}
-                  </button>
-                );
-              })}
-            </nav>
-          )}
-
           <div className={styles.summaryGrid}>
             {this._renderItemSummary(leftItem, localize('Left', '左侧'))}
             <div className={styles.score}>
@@ -488,18 +531,15 @@ class ItemComparer extends PureComponent<Props, State> {
               </thead>
               <tbody>
                 {entries.map((entry) => {
-                  const rawDifference = this._getRawDifference(entry);
-                  const qualityDifference = this._getQualityDifference(entry);
-
                   return (
                     <tr key={entry.key}>
-                      <td className={this._getValueClass(qualityDifference, 'left')}>
+                      <td className={this._getValueClass(entry.qualityDifference, 'left')}>
                         {this._renderValue(entry.leftText, entry.leftRoll)}
                       </td>
-                      <td className={`${styles.difference} ${this._getValueClass(qualityDifference, 'right')}`}>
-                        {this._formatDifference(rawDifference)}
+                      <td className={`${styles.difference} ${this._getValueClass(entry.qualityDifference, 'right')}`}>
+                        {this._formatDifference(entry.rawDifference)}
                       </td>
-                      <td className={this._getValueClass(qualityDifference, 'right')}>
+                      <td className={this._getValueClass(entry.qualityDifference, 'right')}>
                         {this._renderValue(entry.rightText, entry.rightRoll)}
                       </td>
                     </tr>

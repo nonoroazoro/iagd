@@ -70,28 +70,6 @@
     gap: 12px;
 }
 
-.candidateTabs {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 8px;
-    overflow-x: auto;
-}
-
-.candidateTabs button {
-    padding: 6px 12px;
-    border: 1px solid var(--item-border);
-    border-radius: 5px;
-    background: var(--item-background);
-    color: var(--item-stat-modifier);
-    cursor: pointer;
-}
-
-.candidateTabs .activeCandidate {
-    border-color: #4fa3ff;
-    color: #fff;
-    background: #315d88;
-}
-
 .summaryGrid {
     display: grid;
     flex: 0 0 auto;
