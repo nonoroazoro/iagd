@@ -35,10 +35,24 @@ class ItemContainer extends PureComponent<Props, object> {
     compareItem: '',
   }
 
-  // TODO: The state should maybe say if these are NEW or MODIFIED items, to support transferring multiple items?
-  componentWillReceiveProps(nextProps: any, nextState: any) {
-    if (this.state.isComparing) {
-      this.setState({isComparing: false});
+  private _getComparingItems(items: IItem[][]): IItem[] {
+    return items.find((group) =>
+      group.length > 0 && group[0].mergeIdentifier === this.state.compareItem
+    ) || [];
+  }
+
+  componentWillReceiveProps(nextProps: Props) {
+    if (!this.state.isComparing) {
+      return;
+    }
+
+    const remainingItems = this._getComparingItems(nextProps.items)
+      .filter((item) => item.type === IItemType.Player);
+    if (remainingItems.length < 2) {
+      this.setState({
+        isComparing: false,
+        compareItem: '',
+      });
     }
   }
 
@@ -114,15 +128,9 @@ class ItemContainer extends PureComponent<Props, object> {
       ? this.props.hasMore
       : (this.props.numItems !== undefined ? this.props.numItems > items.length : true);
 
-    let comparingItem = [] as IItem[];
-    if (this.state.isComparing) {
-      for (let idx = 0; idx < items.length; idx++) {
-        if (items[idx][0].mergeIdentifier === this.state.compareItem) {
-          comparingItem = items[idx];
-          break;
-        }
-      }
-    }
+    const comparingItem = this.state.isComparing
+      ? this._getComparingItems(items)
+      : [];
 
 
     if (items.length > 0) {
