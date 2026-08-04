@@ -22,48 +22,6 @@ function Resolve-RequiredCommand {
     return $command.Source
 }
 
-function Add-ZipFile {
-    param(
-        [IO.Compression.ZipArchive]$Archive,
-        [string]$SourcePath,
-        [string]$EntryPath
-    )
-
-    $normalizedEntryPath = $EntryPath.Replace('\', '/')
-    $entry = $Archive.CreateEntry($normalizedEntryPath, [IO.Compression.CompressionLevel]::Optimal)
-    $entry.LastWriteTime = (Get-Item -LiteralPath $SourcePath).LastWriteTime
-    $source = [IO.File]::OpenRead($SourcePath)
-    $destination = $entry.Open()
-    try {
-        $source.CopyTo($destination)
-    }
-    finally {
-        $destination.Dispose()
-        $source.Dispose()
-    }
-}
-
-function Add-ZipText {
-    param(
-        [IO.Compression.ZipArchive]$Archive,
-        [string]$Text,
-        [string]$EntryPath
-    )
-
-    $normalizedEntryPath = $EntryPath.Replace('\', '/')
-    $entry = $Archive.CreateEntry($normalizedEntryPath, [IO.Compression.CompressionLevel]::Optimal)
-    $stream = $entry.Open()
-    $writer = [IO.StreamWriter]::new($stream, [Text.UTF8Encoding]::new($false), 1024, $true)
-    try {
-        $writer.WriteLine($Text)
-        $writer.Flush()
-    }
-    finally {
-        $writer.Dispose()
-        $stream.Dispose()
-    }
-}
-
 $repositoryRoot = $PSScriptRoot
 $solutionPath = Join-Path $repositoryRoot 'IAGrim-core.sln'
 $hookSolutionPath = Join-Path $repositoryRoot 'HookDll\Hook\GDIAHook.sln'
@@ -207,10 +165,6 @@ foreach ($requiredPath in @($managedOutput, $webBuildRoot, $retailHook, $playtes
 
 $managedVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $managedOutput 'IAGrim.dll')).FileVersion
 $hookVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($retailHook).ProductVersion
-$zipPath = Join-Path $artifactRoot "GDItemAssistant-custom-$managedVersion-win-x64.zip"
-if (Test-Path -LiteralPath $zipPath) {
-    throw "Output already exists and will not be overwritten: $zipPath"
-}
 
 $webFiles = @(Get-ChildItem -LiteralPath $webBuildRoot -Recurse -File)
 $webTargets = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -219,77 +173,64 @@ foreach ($file in $webFiles) {
     $webTargets.Add((Join-Path 'Resources' $relativePath)) | Out-Null
 }
 
-$memory = [IO.MemoryStream]::new()
-$archive = [IO.Compression.ZipArchive]::new($memory, [IO.Compression.ZipArchiveMode]::Create, $true)
-try {
-    foreach ($file in Get-ChildItem -LiteralPath $managedOutput -Recurse -File) {
-        $relativePath = [IO.Path]::GetRelativePath($managedOutput, $file.FullName)
-        if ($file.Extension -ieq '.pdb' -or
-            $relativePath.StartsWith('UserData\', [StringComparison]::OrdinalIgnoreCase) -or
-            $relativePath.StartsWith('Resources\assets\', [StringComparison]::OrdinalIgnoreCase) -or
-            $webTargets.Contains($relativePath)) {
-            continue
-        }
-
-        Add-ZipFile -Archive $archive -SourcePath $file.FullName -EntryPath (Join-Path 'GDItemAssistant' $relativePath)
+foreach ($file in Get-ChildItem -LiteralPath $managedOutput -Recurse -File) {
+    $relativePath = [IO.Path]::GetRelativePath($managedOutput, $file.FullName)
+    if ($file.Extension -ieq '.pdb' -or
+        $relativePath.StartsWith('UserData\', [StringComparison]::OrdinalIgnoreCase) -or
+        $relativePath.StartsWith('Resources\assets\', [StringComparison]::OrdinalIgnoreCase) -or
+        $webTargets.Contains($relativePath)) {
+        continue
     }
 
-    foreach ($file in $webFiles) {
-        $relativePath = [IO.Path]::GetRelativePath($webBuildRoot, $file.FullName)
-        Add-ZipFile -Archive $archive -SourcePath $file.FullName -EntryPath (Join-Path 'GDItemAssistant\Resources' $relativePath)
-    }
-
-    Add-ZipFile -Archive $archive -SourcePath $retailHook -EntryPath 'GDItemAssistant\ItemAssistantHook_x64.dll'
-    Add-ZipFile -Archive $archive -SourcePath $playtestHook -EntryPath 'GDItemAssistant\ItemAssistantHook_playtest_x64.dll'
-    Add-ZipFile -Archive $archive -SourcePath (Join-Path $repositoryRoot 'LICENSE') -EntryPath 'GDItemAssistant\LICENSE'
-    Add-ZipText -Archive $archive -Text $hookVersion -EntryPath 'GDItemAssistant\dllver.txt'
-}
-finally {
-    $archive.Dispose()
+    $destinationPath = Join-Path $artifactRoot $relativePath
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destinationPath)) | Out-Null
+    [IO.File]::Copy($file.FullName, $destinationPath, $true)
 }
 
-try {
-    [IO.File]::WriteAllBytes($zipPath, $memory.ToArray())
+foreach ($file in $webFiles) {
+    $relativePath = [IO.Path]::GetRelativePath($webBuildRoot, $file.FullName)
+    $destinationPath = Join-Path $artifactRoot (Join-Path 'Resources' $relativePath)
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($destinationPath)) | Out-Null
+    [IO.File]::Copy($file.FullName, $destinationPath, $true)
 }
-finally {
-    $memory.Dispose()
-}
 
-$verificationArchive = [IO.Compression.ZipFile]::OpenRead($zipPath)
-try {
-    $entryNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($entry in $verificationArchive.Entries) {
-        $entryNames.Add($entry.FullName.Replace('\', '/')) | Out-Null
-    }
+[IO.File]::Copy($retailHook, (Join-Path $artifactRoot 'ItemAssistantHook_x64.dll'), $true)
+[IO.File]::Copy($playtestHook, (Join-Path $artifactRoot 'ItemAssistantHook_playtest_x64.dll'), $true)
+[IO.File]::Copy((Join-Path $repositoryRoot 'LICENSE'), (Join-Path $artifactRoot 'LICENSE'), $true)
+[IO.File]::WriteAllText(
+    (Join-Path $artifactRoot 'dllver.txt'),
+    "$hookVersion$([Environment]::NewLine)",
+    [Text.UTF8Encoding]::new($false)
+)
 
-    $requiredEntries = @(
-        'GDItemAssistant/IAGrim.exe',
-        'GDItemAssistant/IAGrim.dll',
-        'GDItemAssistant/ItemAssistantHook_x64.dll',
-        'GDItemAssistant/ItemAssistantHook_playtest_x64.dll',
-        'GDItemAssistant/dllver.txt',
-        'GDItemAssistant/Resources/index.html',
-        'GDItemAssistant/Resources/assets/index.js',
-        'GDItemAssistant/Resources/assets/index.css'
-    )
-    foreach ($requiredEntry in $requiredEntries) {
-        if (-not $entryNames.Contains($requiredEntry)) {
-            throw "ZIP verification failed. Missing entry: $requiredEntry"
-        }
-    }
-
-    foreach ($entryName in $entryNames) {
-        if ($entryName -match '(^|/)UserData/' -or $entryName.EndsWith('.pdb', [StringComparison]::OrdinalIgnoreCase)) {
-            throw "ZIP verification failed. Unexpected entry: $entryName"
-        }
+$requiredFiles = @(
+    'IAGrim.exe',
+    'IAGrim.dll',
+    'ItemAssistantHook_x64.dll',
+    'ItemAssistantHook_playtest_x64.dll',
+    'dllver.txt',
+    'Resources\index.html',
+    'Resources\assets\index.js',
+    'Resources\assets\index.css'
+)
+foreach ($requiredFile in $requiredFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $artifactRoot $requiredFile) -PathType Leaf)) {
+        throw "Artifact verification failed. Missing file: $requiredFile"
     }
 }
-finally {
-    $verificationArchive.Dispose()
+
+$unexpectedFiles = @(Get-ChildItem -LiteralPath $artifactRoot -Recurse -File |
+    Where-Object {
+        $_.Extension -ieq '.pdb' -or
+        [IO.Path]::GetRelativePath($artifactRoot, $_.FullName).StartsWith('UserData\', [StringComparison]::OrdinalIgnoreCase)
+    })
+if ($unexpectedFiles.Count -gt 0) {
+    throw "Artifact verification failed. Unexpected file: $($unexpectedFiles[0].FullName)"
 }
 
-$zipFile = Get-Item -LiteralPath $zipPath
-$zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
-Write-Output "Package: $($zipFile.FullName)"
-Write-Output "Size: $($zipFile.Length) bytes"
-Write-Output "SHA-256: $zipHash"
+$artifactFiles = @(Get-ChildItem -LiteralPath $artifactRoot -Recurse -File)
+$artifactSize = ($artifactFiles | Measure-Object -Property Length -Sum).Sum
+Write-Output "Artifacts: $artifactRoot"
+Write-Output "Version: $managedVersion"
+Write-Output "Files: $($artifactFiles.Count)"
+Write-Output "Size: $artifactSize bytes"

@@ -16,7 +16,7 @@ For Boost, either place one `boost_*` directory under `.tools`, or set `BOOST` t
 
 The `.tools` directory is ignored by Git and must not be committed.
 
-## Package
+## Build
 
 Run from the repository root:
 
@@ -24,7 +24,7 @@ Run from the repository root:
 .\build-package.ps1
 ```
 
-The script builds the managed application, lints and builds WebUI, rebuilds both x64 hook variants, and writes a verified ZIP under `artifacts`.
+The script builds the managed application, lints and builds WebUI, rebuilds both x64 hook variants, and writes the verified runnable files directly under `artifacts`.
 
 Dependency installation is opt-in:
 
@@ -38,4 +38,4 @@ To reuse existing hook DLLs without rebuilding native code:
 .\build-package.ps1 -SkipHookBuild
 ```
 
-Before building, the script verifies and clears only the repository `artifacts` directory. Generated ZIP files do not include `UserData` or PDB files.
+Before building, the script verifies and clears only the repository `artifacts` directory. Generated artifacts do not include `UserData` or PDB files.
