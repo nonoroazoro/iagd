@@ -58,6 +58,12 @@ namespace IAGrim.UI.Controller {
                     var item = _dao.GetById(pid.Value);
                     items.Add(item);
                 }
+                else if (args.TransferAll && !string.IsNullOrWhiteSpace(args.DuplicateIdentity)) {
+                    items.AddRange(_dao.GetByDuplicateIdentity(
+                        args.DuplicateIdentity,
+                        args.Mod!,
+                        args.IsHardcore));
+                }
                 else {
                     // HasValidId (checked above) guarantees these are non-null.
                     IList<PlayerItem> tmp = _dao.GetByRecord(args.Prefix!, args.BaseRecord!, args.Suffix!, args.Materia!, args.Mod!, args.IsHardcore);

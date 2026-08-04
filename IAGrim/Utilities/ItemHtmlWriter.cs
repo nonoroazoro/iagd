@@ -193,7 +193,15 @@ namespace IAGrim.Utilities {
             List<ItemStatInfo>? replicaStats = null;
             var mergeIdentifier = item.BaseRecord ?? string.Empty;
             if (item is PlayerItem pi) {
-                transferUrl = new object[] { pi.BaseRecord ?? "", pi.PrefixRecord ?? "", pi.SuffixRecord ?? "", pi.MateriaRecord ?? "", pi.Mod ?? "", pi.IsHardcore };
+                transferUrl = new object[] {
+                    pi.BaseRecord ?? "",
+                    pi.PrefixRecord ?? "",
+                    pi.SuffixRecord ?? "",
+                    pi.MateriaRecord ?? "",
+                    pi.Mod ?? "",
+                    pi.IsHardcore,
+                    pi.DuplicateIdentity ?? ""
+                };
                 isCloudSynced = pi.IsCloudSynchronized;
                 isHardcore = pi.IsHardcore;
 
@@ -202,7 +210,9 @@ namespace IAGrim.Utilities {
                 }
 
 
-                mergeIdentifier += (pi.PrefixRecord ?? string.Empty) + (pi.SuffixRecord ?? string.Empty);
+                mergeIdentifier = !string.IsNullOrWhiteSpace(pi.DuplicateIdentity)
+                    ? pi.DuplicateIdentity
+                    : mergeIdentifier + (pi.PrefixRecord ?? string.Empty) + (pi.SuffixRecord ?? string.Empty);
             }
             else if (item is BuddyItem bi) {
                 mergeIdentifier += (bi.PrefixRecord ?? string.Empty) + (bi.SuffixRecord ?? string.Empty);

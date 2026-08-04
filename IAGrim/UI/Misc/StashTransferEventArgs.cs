@@ -29,6 +29,7 @@ namespace IAGrim.UI.Misc {
         public string? Suffix => InternalId[2] as string;
         public string? Materia => InternalId[3] as string;
         public string? Mod => InternalId[4] as string;
+        public string? DuplicateIdentity => InternalId.Length >= 7 ? InternalId[6] as string : null;
         public Boolean IsHardcore {
             get {
                 if (HasValidId && !"PI".Equals(BaseRecord))
@@ -38,12 +39,12 @@ namespace IAGrim.UI.Misc {
             }
         }
 
-        public bool HasValidId => InternalId != null && InternalId.Length == 6 && BaseRecord != null;
+        public bool HasValidId => InternalId != null && (InternalId.Length == 6 || InternalId.Length == 7) && BaseRecord != null;
         private object[] InternalId { get; }
         public bool TransferAll { get; }
 
         public override string ToString() {
-            return $"StashTransferEventArgs[Prefix:{Prefix} Base:{BaseRecord} Suffix:{Suffix} Materia:{Materia}, Mod:{Mod}, IsHardcore:{IsHardcore}]";
+            return $"StashTransferEventArgs[Prefix:{Prefix} Base:{BaseRecord} Suffix:{Suffix} Materia:{Materia}, Mod:{Mod}, IsHardcore:{IsHardcore}, DuplicateIdentity:{DuplicateIdentity}]";
         }
 
         public bool IsSuccessful { get; set; }

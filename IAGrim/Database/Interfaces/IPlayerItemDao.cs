@@ -6,6 +6,7 @@ using IAGrim.Database.Dto;
 namespace IAGrim.Database.Interfaces {
     public interface IPlayerItemDao : IBaseDao<PlayerItem> {
         IList<PlayerItem> GetByRecord(string prefixRecord, string baseRecord, string suffixRecord, string materiaRecord, string mod, bool isHardcore);
+        IList<PlayerItem> GetByDuplicateIdentity(string duplicateIdentity, string mod, bool isHardcore);
 
         IList<PlayerItem> GetUnsynchronizedItems();
         void SetAsSynchronized(IList<PlayerItem> items);

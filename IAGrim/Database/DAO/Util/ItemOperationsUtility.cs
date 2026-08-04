@@ -14,14 +14,16 @@ namespace IAGrim.Database.DAO.Util {
 
         public static List<List<PlayerHeldItem>> MergeStackSize(
             IEnumerable<PlayerHeldItem> items,
-            bool groupByBaseRecordOnly = false) {
+            bool groupByDuplicateIdentity = false) {
             Dictionary<string, List<PlayerHeldItem>> map = new Dictionary<string, List<PlayerHeldItem>>();
             foreach (var item in items) {
-                var mergeIdentifier = item.BaseRecord ?? string.Empty;
-                if (!groupByBaseRecordOnly && item is PlayerItem pi) {
+                var mergeIdentifier = groupByDuplicateIdentity && item is PlayerItem duplicateItem
+                    ? duplicateItem.DuplicateIdentity ?? duplicateItem.BaseRecord ?? string.Empty
+                    : item.BaseRecord ?? string.Empty;
+                if (!groupByDuplicateIdentity && item is PlayerItem pi) {
                     mergeIdentifier += (pi.PrefixRecord ?? string.Empty) + (pi.SuffixRecord ?? string.Empty);
                 }
-                else if (!groupByBaseRecordOnly && item is BuddyItem bi) {
+                else if (!groupByDuplicateIdentity && item is BuddyItem bi) {
                     mergeIdentifier += (bi.PrefixRecord ?? string.Empty) + (bi.SuffixRecord ?? string.Empty);
                 }
 

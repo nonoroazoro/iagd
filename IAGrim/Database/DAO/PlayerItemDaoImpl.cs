@@ -29,6 +29,15 @@ namespace IAGrim.Database {
             _databaseItemStatDao = databaseItemStatDao;
         }
 
+        private static string DuplicateIdentitySql(string playerItemAlias) {
+            return $@"COALESCE(NULLIF((
+                SELECT DB.Name
+                FROM DatabaseItem_v2 DB
+                WHERE DB.BaseRecord = {playerItemAlias}.BaseRecord
+                LIMIT 1
+            ), ''), {playerItemAlias}.BaseRecord)";
+        }
+
         /// <summary>
         /// List all player items
         /// </summary>
@@ -58,6 +67,47 @@ namespace IAGrim.Database {
                 }
 
                 return crits.List<PlayerItem>();
+            }
+        }
+
+        public IList<PlayerItem> GetByDuplicateIdentity(string duplicateIdentity, string mod, bool isHardcore) {
+            var queryParams = new Dictionary<string, object> {
+                { "duplicateIdentity", duplicateIdentity }
+            };
+            var conditions = new List<string> {
+                $"{DuplicateIdentitySql("PI")} = :duplicateIdentity",
+                isHardcore ? "PI.IsHardcore" : "NOT PI.IsHardcore"
+            };
+
+            if (string.IsNullOrEmpty(mod)) {
+                conditions.Add("(PI.Mod IS NULL OR PI.Mod = '')");
+            }
+            else {
+                conditions.Add("LOWER(PI.Mod) = LOWER(:mod)");
+                queryParams.Add("mod", mod);
+            }
+
+            using (var session = SessionCreator.OpenSession()) {
+                var query = session.CreateSQLQuery($@"
+                    SELECT PI.Id
+                    FROM PlayerItem PI
+                    WHERE {string.Join(" AND ", conditions)}");
+
+                foreach (var parameter in queryParams) {
+                    query.SetParameter(parameter.Key, parameter.Value);
+                }
+
+                var ids = query.List<object>()
+                    .Select(Convert<long>)
+                    .Cast<object>()
+                    .ToArray();
+                if (ids.Length == 0) {
+                    return new List<PlayerItem>();
+                }
+
+                return session.CreateCriteria<PlayerItem>()
+                    .Add(Restrictions.In("Id", ids))
+                    .List<PlayerItem>();
             }
         }
 
@@ -838,21 +888,23 @@ namespace IAGrim.Database {
             }
 
             if (query.DuplicatesOnly) {
-                var hcSc = query.IsHardcore ? "IsHardcore" : "NOT IsHardcore";
+                var duplicateIdentity = DuplicateIdentitySql("PI");
+                var ownedDuplicateIdentity = DuplicateIdentitySql("Owned");
+                var hcSc = query.IsHardcore ? "Owned.IsHardcore" : "NOT Owned.IsHardcore";
                 if (string.IsNullOrEmpty(query.Mod)) {
-                    queryFragments.Add($@"PI.BaseRecord IN (
-                    SELECT BaseRecord FROM PlayerItem
-                    WHERE (Mod IS NULL OR Mod = '')
+                    queryFragments.Add($@"{duplicateIdentity} IN (
+                    SELECT {ownedDuplicateIdentity} FROM PlayerItem Owned
+                    WHERE (Owned.Mod IS NULL OR Owned.Mod = '')
                     AND {hcSc}
-                    GROUP BY BaseRecord
+                    GROUP BY {ownedDuplicateIdentity}
                     HAVING COUNT(*) >= 2)");
                 }
                 else {
-                    queryFragments.Add($@"PI.BaseRecord IN (
-                    SELECT BaseRecord FROM PlayerItem
-                    WHERE LOWER(Mod) = LOWER( :mod )
+                    queryFragments.Add($@"{duplicateIdentity} IN (
+                    SELECT {ownedDuplicateIdentity} FROM PlayerItem Owned
+                    WHERE LOWER(Owned.Mod) = LOWER( :mod )
                     AND {hcSc}
-                    GROUP BY BaseRecord
+                    GROUP BY {ownedDuplicateIdentity}
                     HAVING COUNT(*) >= 2)");
                 }
             }
@@ -891,7 +943,8 @@ namespace IAGrim.Database {
                     and stat.stat = 'spawnObjects')");
             }
 
-            const string selectColumns = @"select PI.name as Name,
+            var duplicateIdentityColumn = query.DuplicatesOnly ? DuplicateIdentitySql("PI") : "NULL";
+            var selectColumns = $@"select PI.name as Name,
                 PI.StackCount,
                 PI.rarity as Rarity,
                 PI.levelrequirement as LevelRequirement,
@@ -912,7 +965,8 @@ namespace IAGrim.Database {
                 IFNULL(AffixRerollsUsed, 0) as AffixRerollsUsed,
                 '' AS PetRecord,
                 '[]' AS ReplicaInfo,
-                PI.Seed as Seed ";
+                PI.Seed as Seed,
+                {duplicateIdentityColumn} AS DuplicateIdentity ";
 
             // The FROM/WHERE body is shared verbatim between the row query and the COUNT(*) query
             // (see below) so the total count can never drift from what the paged query actually returns.
@@ -1149,6 +1203,7 @@ namespace IAGrim.Database {
             string? PetRecord = Convert<string>(arr[idx++])?.Trim();
             string replicaInfo = Convert<string>(arr[idx++]);
             long seed = Convert<long>(arr[idx++]);
+            string? duplicateIdentity = idx < arr.Length ? Convert<string>(arr[idx++])?.Trim() : null;
 
 
             return new PlayerItem {
@@ -1173,7 +1228,8 @@ namespace IAGrim.Database {
                 RerollsUsed = RerollsUsed,
                 AffixRerollsUsed = AffixRerollsUsed,
                 ReplicaInfo = replicaInfo,
-                Seed = seed
+                Seed = seed,
+                DuplicateIdentity = duplicateIdentity
             };
         }
 
@@ -1316,7 +1372,8 @@ namespace IAGrim.Database {
                 IFNULL(AffixRerollsUsed, 0) as AffixRerollsUsed,
                 '' AS PetRecord,
                 '[]' AS ReplicaInfo,
-                PI.{PlayerItemTable.Seed} as Seed
+                PI.{PlayerItemTable.Seed} as Seed,
+                NULL as DuplicateIdentity
                 FROM PlayerItem PI 
                 WHERE PI.Id NOT IN (SELECT R.PlayerItemId FROM ReplicaItem2 R WHERE R.PlayerItemId IS NOT NULL)
 

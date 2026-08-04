@@ -82,6 +82,7 @@ namespace IAGrim.Database {
         public virtual long AffixRerollsUsed { get; set; }
         public virtual string? Name { get; set; }
         public virtual string? NameLowercase { get; set; } // To help with case insensitive search on non-ascii characters
+        public string? DuplicateIdentity { get; set; }
         public virtual long PrefixRarity { get; set; }
 
         public virtual string Stash => string.Empty;
