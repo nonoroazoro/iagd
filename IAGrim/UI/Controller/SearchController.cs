@@ -123,7 +123,9 @@ namespace IAGrim.UI.Controller {
                     updatedNumItemsFound = _playerTotalCount + _buddyCount;
                 }
 
-                _itemPaginationService.Append(ItemOperationsUtility.MergeStackSize(more));
+                _itemPaginationService.Append(ItemOperationsUtility.MergeStackSize(
+                    more,
+                    _lastQuery.DuplicatesOnly));
             }
 
             var items = _itemPaginationService.Fetch();
@@ -159,7 +161,7 @@ namespace IAGrim.UI.Controller {
 
             var items = _playerItemDao.SearchForItems(query, 0, false, false, out _, out _, item);
             _playerItemDao.PopulateReplicaAndPetInfo(items);
-            var merged = ItemOperationsUtility.MergeStackSize(items);
+            var merged = ItemOperationsUtility.MergeStackSize(items, query.DuplicatesOnly);
             _itemStatService.ApplyStats(merged.SelectMany(m => m));
             var convertedItems = ItemHtmlWriter.ToJsonSerializable(merged);
             browser.AddItems(convertedItems, HasMore);
@@ -210,7 +212,7 @@ namespace IAGrim.UI.Controller {
                         : string.Empty;
                 }
 
-                var merged = ItemOperationsUtility.MergeStackSize(items);
+                var merged = ItemOperationsUtility.MergeStackSize(items, query.DuplicatesOnly);
 
                 if (_itemPaginationService.Update(merged, orderByLevel, _playerTotalCount + _buddyCount)) {
                     if (!ApplyItems(false)) {

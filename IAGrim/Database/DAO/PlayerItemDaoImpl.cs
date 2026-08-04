@@ -840,24 +840,20 @@ namespace IAGrim.Database {
             if (query.DuplicatesOnly) {
                 var hcSc = query.IsHardcore ? "IsHardcore" : "NOT IsHardcore";
                 if (string.IsNullOrEmpty(query.Mod)) {
-                    queryFragments.Add($@"PI.BaseRecord IN (SELECT BaseRecord FROM (
-                    select baserecord || prefixrecord || suffixrecord as Records, count(*) as N, BaseRecord from PlayerItem
+                    queryFragments.Add($@"PI.BaseRecord IN (
+                    SELECT BaseRecord FROM PlayerItem
                     WHERE (Mod IS NULL OR Mod = '')
                     AND {hcSc}
-                    group by Records
-                    HAVING N > 1
-                    order by N desc
-                    ))");
+                    GROUP BY BaseRecord
+                    HAVING COUNT(*) >= 2)");
                 }
                 else {
-                    queryFragments.Add($@"PI.BaseRecord IN (SELECT BaseRecord FROM (
-                    select baserecord || prefixrecord || suffixrecord as Records, count(*) as N, BaseRecord from PlayerItem
+                    queryFragments.Add($@"PI.BaseRecord IN (
+                    SELECT BaseRecord FROM PlayerItem
                     WHERE LOWER(Mod) = LOWER( :mod )
                     AND {hcSc}
-                    group by Records
-                    HAVING N > 1
-                    order by N desc
-                    ))");
+                    GROUP BY BaseRecord
+                    HAVING COUNT(*) >= 2)");
                 }
             }
 

@@ -12,14 +12,16 @@ using StatTranslator;
 namespace IAGrim.Database.DAO.Util {
     static class ItemOperationsUtility {
 
-        public static List<List<PlayerHeldItem>> MergeStackSize(IEnumerable<PlayerHeldItem> items) {
+        public static List<List<PlayerHeldItem>> MergeStackSize(
+            IEnumerable<PlayerHeldItem> items,
+            bool groupByBaseRecordOnly = false) {
             Dictionary<string, List<PlayerHeldItem>> map = new Dictionary<string, List<PlayerHeldItem>>();
             foreach (var item in items) {
                 var mergeIdentifier = item.BaseRecord ?? string.Empty;
-                if (item is PlayerItem pi) {
+                if (!groupByBaseRecordOnly && item is PlayerItem pi) {
                     mergeIdentifier += (pi.PrefixRecord ?? string.Empty) + (pi.SuffixRecord ?? string.Empty);
                 }
-                else if (item is BuddyItem bi) {
+                else if (!groupByBaseRecordOnly && item is BuddyItem bi) {
                     mergeIdentifier += (bi.PrefixRecord ?? string.Empty) + (bi.SuffixRecord ?? string.Empty);
                 }
 

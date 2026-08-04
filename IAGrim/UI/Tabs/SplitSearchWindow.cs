@@ -23,6 +23,7 @@ namespace IAGrim.UI.Tabs {
         private DesiredSkills? _filterWindow;
         private TextBox _searchBox;
         private CheckBox? _orderByLevel;
+        private CheckBox? _duplicatesOnly;
         private ComboBox? _modFilter;
         private ComboBox? _slotFilter;
         private SplitContainer _mainSplitter;
@@ -144,6 +145,7 @@ namespace IAGrim.UI.Tabs {
             _slotFilter!.SelectedIndex = 0;
             _minLevel!.Text = "0";
             _maxLevel!.Text = "110";
+            _duplicatesOnly!.Checked = false;
 
             UpdateListViewDelayed();
         }
@@ -195,7 +197,7 @@ namespace IAGrim.UI.Tabs {
                 PetBonuses = filters.PetBonuses,
                 HasPetBonus = filters.HasPetBonus,
                 IsRetaliation = filters.IsRetaliation,
-                DuplicatesOnly = filters.DuplicatesOnly,
+                DuplicatesOnly = filters.DuplicatesOnly || _duplicatesOnly!.Checked,
                 Mod = transferFile.Mod,
                 IsHardcore = transferFile.IsHardcore,
                 Classes = filters.DesiredClass ?? new List<string>(),
@@ -209,7 +211,7 @@ namespace IAGrim.UI.Tabs {
                 _searchController.Search(query, item);
             }
             else {
-                bool includeBuddyItems = !filters.DuplicatesOnly; // If we're looking for duplicates, we're probably doing a cleanup, not caring about buddyitems
+                bool includeBuddyItems = !query.DuplicatesOnly; // Duplicate cleanup only applies to the local collection.
                 var message = _searchController.Search(query, includeBuddyItems, _orderByLevel!.Checked);
 
                 Logger.Info("Updating UI...");
@@ -347,6 +349,7 @@ namespace IAGrim.UI.Tabs {
             _searchBox.TextChanged += SearchBox_TextChanged;
 
             _orderByLevel!.CheckStateChanged += delegate { UpdateListViewDelayed(); };
+            _duplicatesOnly!.CheckStateChanged += delegate { UpdateListViewDelayed(); };
 
             _flowPanelFilter!.SizeChanged += FlowPanelFilter_Resize;
             _mainSplitter.SizeChanged += FlowPanelFilter_Resize;
@@ -404,6 +407,7 @@ namespace IAGrim.UI.Tabs {
             _flowPanelFilter = new FlowLayoutPanel();
             _searchBox = new TextBox();
             _orderByLevel = new CheckBox();
+            _duplicatesOnly = new CheckBox();
             _itemQuality = new ComboBox();
             _slotFilter = new ComboBox();
             _modFilter = new ComboBox();
@@ -478,6 +482,7 @@ namespace IAGrim.UI.Tabs {
             _flowPanelFilter.Controls.Add(_slotFilter);
             _flowPanelFilter.Controls.Add(_modFilter);
             _flowPanelFilter.Controls.Add(_levelRequirementGroup);
+            _flowPanelFilter.Controls.Add(_duplicatesOnly);
             _flowPanelFilter.Dock = DockStyle.Top;
             _flowPanelFilter.Location = new Point(0, 0);
             _flowPanelFilter.Margin = new Padding(4, 3, 4, 3);
@@ -597,7 +602,21 @@ namespace IAGrim.UI.Tabs {
             _maxLevel.TextAlign = HorizontalAlignment.Center;
             toolTip1.SetToolTip(_maxLevel, "The maximum level required to use this item");
             _maxLevel.WordWrap = false;
-            // 
+            //
+            // _duplicatesOnly
+            //
+            _duplicatesOnly.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _duplicatesOnly.AutoSize = true;
+            _duplicatesOnly.Location = new Point(731, 22);
+            _duplicatesOnly.Margin = new Padding(4, 22, 4, 3);
+            _duplicatesOnly.Name = "_duplicatesOnly";
+            _duplicatesOnly.Size = new Size(111, 19);
+            _duplicatesOnly.TabIndex = 51;
+            _duplicatesOnly.Tag = "iatag_ui_duplicatesonly";
+            _duplicatesOnly.Text = "Duplicates Only";
+            toolTip1.SetToolTip(_duplicatesOnly, "Show only items owned in quantities of two or more.");
+            _duplicatesOnly.UseVisualStyleBackColor = true;
+            //
             // toolTip1
             // 
             toolTip1.ToolTipTitle = "This is:";
