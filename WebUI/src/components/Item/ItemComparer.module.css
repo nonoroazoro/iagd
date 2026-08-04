@@ -6,7 +6,7 @@
     bottom: 16px;
     display: flex;
     flex-direction: column;
-    width: min(1120px, calc(100% - 48px));
+    width: min(1200px, calc(100% - 48px));
     box-sizing: border-box;
     margin: 0;
     transform: translateX(-50%);
