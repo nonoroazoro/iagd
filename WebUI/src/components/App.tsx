@@ -4,7 +4,7 @@ import { Help } from '../containers/help';
 import IItem from "../interfaces/IItem";
 import ICollectionItem from "../interfaces/ICollectionItem";
 import {PureComponent} from "preact/compat";
-import {dismissNumericFilterBanner, isEmbedded, requestCollectionData, requestMoreItems, signalReady} from "../integration/integration";
+import {dismissModFilterWarning, dismissNumericFilterBanner, isEmbedded, requestCollectionData, requestMoreItems, signalReady} from "../integration/integration";
 import MockCollectionItemData from "../mock/MockCollectionItemData";
 import Spinner from "./Spinner";
 import '../style/App.css';
@@ -496,6 +496,11 @@ class App extends PureComponent<object, object> {
     dismissNumericFilterBanner();
   }
 
+  closeModFilterWarning = () => {
+    this.setState({showModFilterWarning: 0});
+    dismissModFilterWarning();
+  }
+
   closeNotification = (id?: string) => {
     const notifications = [...this.state.notifications];
 
@@ -533,7 +538,7 @@ class App extends PureComponent<object, object> {
         {this.state.activeTab === 0 && !isEmbedded ? <MockItemsButton onClick={(items) => this.setItems(items)}/> : ''}
         {this.state.activeTab === 3 && <CharacterListContainer/>}
 
-        {this.state.activeTab === 0 && this.state.showModFilterWarning > 0 && <ModFilterWarning numOtherItems={this.state.showModFilterWarning}/>}
+        {this.state.activeTab === 0 && this.state.showModFilterWarning > 0 && <ModFilterWarning numOtherItems={this.state.showModFilterWarning} close={this.closeModFilterWarning}/>}
         {this.state.activeTab === 0 && this.state.showNumericFilterBanner && <NumericFilterBanner close={this.closeNumericFilterBanner}/>}
         {this.state.activeTab === 0 && <ItemContainer
           showBackupCloudIcon={this.state.showBackupCloudIcon}

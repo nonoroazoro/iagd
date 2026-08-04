@@ -17,6 +17,7 @@
         private bool? _isRunningInWine;
         private bool? _numericFilterUsed;
         private bool? _numericFilterBannerDismissed;
+        private bool? _modFilterWarningDismissed;
 
         private long? _cloudUploadTimestamp;
 
@@ -154,6 +155,15 @@
             get => _numericFilterBannerDismissed ?? false;
             set {
                 _numericFilterBannerDismissed = value;
+                OnMutate?.Invoke(null, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>Set when the user permanently dismisses the mod filter warning.</summary>
+        public bool ModFilterWarningDismissed {
+            get => _modFilterWarningDismissed ?? false;
+            set {
+                _modFilterWarningDismissed = value;
                 OnMutate?.Invoke(null, EventArgs.Empty);
             }
         }

@@ -8,6 +8,7 @@ using IAGrim.Utilities;
 using log4net;
 using EvilsoftCommons.Exceptions;
 using IAGrim.Database.DAO.Util;
+using IAGrim.Settings;
 
 namespace IAGrim.UI.Controller {
     public class SearchController {
@@ -19,6 +20,7 @@ namespace IAGrim.UI.Controller {
         private readonly IBuddyItemDao _buddyItemDao;
         private readonly ItemPaginationService _itemPaginationService;
         private readonly IItemCollectionDao _itemCollectionRepo;
+        private readonly SettingsService _settingsService;
 
 
         public IBrowserCallbacks? Browser;
@@ -51,12 +53,14 @@ namespace IAGrim.UI.Controller {
             IPlayerItemDao playerItemDao,
             ItemStatService itemStatService,
             IBuddyItemDao buddyItemDao,
-            IItemCollectionDao itemCollectionRepo) {
+            IItemCollectionDao itemCollectionRepo,
+            SettingsService settingsService) {
             _playerItemDao = playerItemDao;
             _itemStatService = itemStatService;
             _itemPaginationService = new ItemPaginationService(TakeSize);
             _buddyItemDao = buddyItemDao;
             _itemCollectionRepo = itemCollectionRepo;
+            _settingsService = settingsService;
 
             JsIntegration.OnRequestItems += JsBind_OnRequestItems;
             JsIntegration.OnRequestCollectionData += JsBind_OnRequestCollectionData;
@@ -229,7 +233,10 @@ namespace IAGrim.UI.Controller {
                 // We have no search filters, yet can barely find any items. Despite there being more than twice as many items as we found.
                 // This might indicate the mod filter dropdown has the wrong setting.
                 var numOtherItems = _playerItemDao.GetNumItems() - personalCount;
-                if (query.IsEmpty && personalCount < 300 && numOtherItems > personalCount) {
+                if (query.IsEmpty
+                    && personalCount < 300
+                    && numOtherItems > personalCount
+                    && !_settingsService.GetPersistent().ModFilterWarningDismissed) {
                     browser.ShowModFilterWarning((int)numOtherItems);
                 }
 

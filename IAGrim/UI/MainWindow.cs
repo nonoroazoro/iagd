@@ -534,6 +534,7 @@ namespace IAGrim.UI {
             searchController.Browser = _cefBrowserHandler;
             searchController.JsIntegration.OnClipboard += SetItemsClipboard;
             searchController.JsIntegration.OnDismissNumericFilterBanner += (_, _) => settingsService.GetPersistent().NumericFilterBannerDismissed = true;
+            searchController.JsIntegration.OnDismissModFilterWarning += (_, _) => settingsService.GetPersistent().ModFilterWarningDismissed = true;
 
             var playerItemDao = _serviceProvider.Get<IPlayerItemDao>();
             var cacher = _serviceProvider.Get<TransferStashServiceCache>();

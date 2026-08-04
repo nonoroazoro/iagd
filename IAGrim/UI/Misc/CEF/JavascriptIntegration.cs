@@ -26,6 +26,7 @@ namespace IAGrim.UI.Misc.CEF {
         public event EventHandler<RequestCharacterDownloadUrlEventArg>? OnRequestCharacterDownloadUrl;
         public event EventHandler? OnSignalReadiness;
         public event EventHandler? OnDismissNumericFilterBanner;
+        public event EventHandler? OnDismissModFilterWarning;
 
         public string TransferItem(object[] identifier, bool transferAll) {
             var args = new StashTransferEventArgs(identifier, transferAll);
@@ -112,6 +113,10 @@ namespace IAGrim.UI.Misc.CEF {
         // Called when the user confirms the numeric filter introduction banner, so it's never shown again.
         public void DismissNumericFilterBanner() {
             OnDismissNumericFilterBanner?.Invoke(null, EventArgs.Empty);
+        }
+
+        public void DismissModFilterWarning() {
+            OnDismissModFilterWarning?.Invoke(null, EventArgs.Empty);
         }
 
         // TODO: Weird flow, should just return items.

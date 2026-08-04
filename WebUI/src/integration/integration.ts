@@ -34,6 +34,7 @@ interface IntegrationInterface {
     GetTranslationStrings(): { [index: string]: string };
 
     DismissNumericFilterBanner(): void;
+    DismissModFilterWarning(): void;
 }
 
 
@@ -105,6 +106,14 @@ export function dismissNumericFilterBanner(): void {
     core.DismissNumericFilterBanner();
   } else {
     console.debug('Dismissing numeric filter banner');
+  }
+}
+
+export function dismissModFilterWarning(): void {
+  if (isEmbedded) {
+    core.DismissModFilterWarning();
+  } else {
+    console.debug('Dismissing mod filter warning');
   }
 }
 
