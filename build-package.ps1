@@ -154,6 +154,11 @@ if (Test-Path -LiteralPath $artifactFullPath -PathType Container) {
 }
 [IO.Directory]::CreateDirectory($artifactFullPath) | Out-Null
 
+& $pathDotnet clean $solutionPath --configuration Release
+if ($LASTEXITCODE -ne 0) {
+    throw ".NET clean failed with exit code $LASTEXITCODE."
+}
+
 & $pathDotnet build $solutionPath --configuration Release
 if ($LASTEXITCODE -ne 0) {
     throw ".NET build failed with exit code $LASTEXITCODE."
