@@ -648,7 +648,7 @@ namespace StatTranslator {
             {"iatag_ui_armorincrease", "Armor increase"},
             {"iatag_ui_cooldown_reduction", "Cooldown Reduction"},
             {"iatag_stash3_failure", "Cannot deposit item, please ensure SHARED Stash tab is empty."},
-            {"iatag_stash3_success", "Successfully deposited {0} items"},
+            {"iatag_stash3_success", "Transferred {0} x {1} to the game stash"},
             {"iatag_deposit_stash_full", "Could not insert item, stash full"},
             {"iatag_deposit_pipe_success", "Item sent to GD"},
             {"iatag_file_does_not_exist", "The specified file does not exist"},

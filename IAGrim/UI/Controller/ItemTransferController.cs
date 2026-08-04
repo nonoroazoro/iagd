@@ -86,6 +86,7 @@ namespace IAGrim.UI.Controller {
 
         struct TransferStatus {
             public int NumItemsTransferred;
+            public string ItemName;
         }
 
 
@@ -105,7 +106,18 @@ namespace IAGrim.UI.Controller {
 
             return new TransferStatus {
                 NumItemsTransferred = (int)numItemsReceived,
+                ItemName = GetItemName(items),
             };
+        }
+
+        private static string GetItemName(IEnumerable<PlayerItem> items) {
+            var names = items
+                .Select(item => string.IsNullOrWhiteSpace(item.Name) ? item.BaseRecord : item.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .Distinct()
+                .ToList();
+
+            return names.Count > 0 ? string.Join(", ", names) : "Unknown item";
         }
 
 
@@ -130,7 +142,10 @@ namespace IAGrim.UI.Controller {
                 var result = TransferItems(items, modOverride);
                 args.NumTransferred = result.NumItemsTransferred;
                 args.IsSuccessful = true;
-                var message = RuntimeSettings.Language!.GetTag("iatag_stash3_success", result.NumItemsTransferred);
+                var message = RuntimeSettings.Language!.GetTag(
+                    "iatag_stash3_success",
+                    result.NumItemsTransferred,
+                    result.ItemName);
                 _browser.ShowMessage(message, UserFeedbackLevel.Success);
             }
             else {
