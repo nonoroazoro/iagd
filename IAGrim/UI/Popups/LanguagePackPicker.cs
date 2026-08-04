@@ -93,7 +93,9 @@ namespace IAGrim.UI {
 
             var n = 0;
             var currentCode = _settings.GetLocal().LanguageCode;
-            var availableCodes = LanguageMapping.GetAvailableLanguages(_paths ?? Enumerable.Empty<string>()).ToList();
+            var availableCodes = LanguageMapping.GetAvailableLanguages(_paths ?? Enumerable.Empty<string>())
+                .Where(LanguageMapping.IsFullySupported)
+                .ToList();
 
             // Always show English first
             if (!availableCodes.Contains("EN")) {
@@ -105,12 +107,9 @@ namespace IAGrim.UI {
 #if DEBUG
                 displayName += $" ({code})";
 #endif
-                var isFullySupported = code.Equals("EN", StringComparison.OrdinalIgnoreCase) || LanguageMapping.IsFullySupported(code);
-                var prefix = isFullySupported ? "" : "[Partial] ";
-
                 var cb = new FirefoxRadioButton {
                     Location = new Point(ScaleX(6), ScaleY(6 + n * 33)),
-                    Text = prefix + displayName,
+                    Text = displayName,
                     Anchor = AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top,
                     Size = new Size(
                         languageList.ClientSize.Width - ScaleX(12) - SystemInformation.VerticalScrollBarWidth,

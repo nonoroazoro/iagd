@@ -10,17 +10,6 @@ namespace IAGrim.Parsers.Arz {
     public static class LanguageMapping {
         public static readonly Dictionary<string, string> CodeToDisplayName = new Dictionary<string, string> {
             { "EN", "English" },
-            { "CS", "Čeština" },
-            { "DE", "Deutsch" },
-            { "ES", "Español" },
-            { "FR", "Français" },
-            { "IT", "Italiano" },
-            { "JA", "日本語" },
-            { "KO", "한국어" },
-            { "PL", "Polski" },
-            { "PT", "Português (BR)" },
-            { "RU", "Русский" },
-            { "VI", "Tiếng Việt" },
             { "ZH", "简体中文" },
         };
 
@@ -28,7 +17,7 @@ namespace IAGrim.Parsers.Arz {
         /// Language codes for which we ship a full IA translation override file.
         /// </summary>
         private static readonly HashSet<string> FullySupportedCodes = new HashSet<string> {
-            "ES", "JA", "ZH", "PT", "RU"
+            "ZH"
         };
 
         public static bool IsFullySupported(string code) => FullySupportedCodes.Contains(code.ToUpperInvariant());
@@ -70,5 +59,3 @@ namespace IAGrim.Parsers.Arz {
         }
     }
 }
-
-

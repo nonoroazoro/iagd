@@ -83,6 +83,7 @@ namespace IAGrim.Parsers.Arz {
             if (iaTranslationFile != null) {
                 LoadIaTranslationFile(iaTranslationFile);
             } else {
+                _tagsIa = null;
                 Logger.Info($"No bundled IA translation file found for language code '{languageCode}'");
             }
 
@@ -143,7 +144,7 @@ namespace IAGrim.Parsers.Arz {
         /// </summary>
         public static bool HasSupportedTranslations(IEnumerable<string> grimDawnInstallPaths) {
             return LanguageMapping.GetAvailableLanguages(grimDawnInstallPaths)
-                .Any(code => !code.Equals("EN", StringComparison.OrdinalIgnoreCase));
+                .Any(LanguageMapping.IsFullySupported);
         }
     }
 }
