@@ -32,12 +32,29 @@ $retailHook = Join-Path $repositoryRoot 'HookDll\Hook\x64\Release\ItemAssistantH
 $playtestHook = Join-Path $repositoryRoot 'HookDll\Hook\x64\Release-playtest\ItemAssistantHook_x64.dll'
 $artifactRoot = Join-Path $repositoryRoot 'artifacts'
 
+$pathDotnet = $null
+$pathDotnetCommand = Get-Command 'dotnet' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($null -ne $pathDotnetCommand) {
+    $pathDotnetVersion = & $pathDotnetCommand.Source --version
+    if ($LASTEXITCODE -eq 0 -and
+        -not [string]::IsNullOrWhiteSpace($pathDotnetVersion) -and
+        [Version]$pathDotnetVersion -ge [Version]'10.0') {
+        $pathDotnet = $pathDotnetCommand.Source
+    }
+}
+
 $repositoryDotnet = Join-Path $repositoryRoot '.tools\dotnet\dotnet.exe'
-if (Test-Path -LiteralPath $repositoryDotnet -PathType Leaf) {
+if ($null -eq $pathDotnet -and (Test-Path -LiteralPath $repositoryDotnet -PathType Leaf)) {
     $pathDotnet = (Resolve-Path -LiteralPath $repositoryDotnet).Path
 }
-else {
-    $pathDotnet = Resolve-RequiredCommand -Name 'dotnet' -Description '.NET SDK'
+
+if ($null -eq $pathDotnet) {
+    throw '.NET SDK 10 or newer was not found in PATH or .tools\dotnet.'
+}
+
+$dotnetVersion = & $pathDotnet --version
+if ($LASTEXITCODE -ne 0 -or [Version]$dotnetVersion -lt [Version]'10.0') {
+    throw 'The repository-local .NET SDK is invalid or too old.'
 }
 $pathNpm = Resolve-RequiredCommand -Name 'npm' -Description 'npm'
 $pathMsBuild = $null
