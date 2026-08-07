@@ -68,13 +68,13 @@ namespace IAGrim.Database.Dto {
                     return false;
                 if (Filters.Count > 0)
                     return false;
-                if (MinimumLevel >= 1 || MaximumLevel <= 84)
+                if (MinimumLevel >= 1 || MaximumLevel < 110)
                     return false;
                 if (!String.IsNullOrEmpty(Rarity) || Slot != null)
                     return false;
                 if (PetBonuses || HasPetBonus || IsRetaliation || Classes.Count > 0 || SocketedOnly || RecentOnly)
                     return false;
-                if (WithGrantSkillsOnly || WithSummonerSkillOnly || DuplicatesOnly || PrefixRarity > 0)
+                if (WithGrantSkillsOnly || WithSummonerSkillOnly || DuplicatesOnly || RecipeItemsOnly || PrefixRarity > 0)
                     return false;
                 if (StatValueFilters?.Count > 0)
                     return false;

@@ -129,6 +129,7 @@ namespace IAGrim.Database {
 
         public void CreateItemIndexes(ProgressTracker progressTracker) {
             var createCommands = new[] {
+                "create index if not exists idx_databaseitemv2_baserecord on DatabaseItem_v2 (BaseRecord)",
                 "create index idx_databaseitemstatv2_parent on DatabaseItemStat_v2 (id_databaseitem)",
                 "create index idx_databaseitemstatv2_stat on DatabaseItemStat_v2 (Stat)",
                 "create index idx_databaseitemstatv2_tv on DatabaseItemStat_v2 (TextValue)"

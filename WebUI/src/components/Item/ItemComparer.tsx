@@ -139,7 +139,7 @@ class ItemComparer extends PureComponent<Props> {
         key: this._getRowKey(row.text, row.type, row.section),
         text: row.text,
         roll: rolls[index],
-        comparable: !row.section.startsWith('granted-skill'),
+        comparable: row.type !== 5 && !row.section.startsWith('granted-skill'),
       }));
     }
 
@@ -256,7 +256,7 @@ class ItemComparer extends PureComponent<Props> {
     });
     const orderedKeys = this._mergeRowOrder(sequences);
 
-    return orderedKeys.reduce<MultiComparisonEntry[]>((entries, key) => {
+    const entries = orderedKeys.reduce<MultiComparisonEntry[]>((result, key) => {
       const values = valuesByItem.map((itemValues) => itemValues.get(key) ?? null);
       const metrics = values.map((value) => value?.comparable
         ? this._getMetric(value.text)
@@ -273,9 +273,27 @@ class ItemComparer extends PureComponent<Props> {
         && worst !== null
         && (comparable.length < values.length || Math.abs(best - worst) >= 0.000001);
 
-      entries.push({ key, values, metrics, best, worst, hasDifference });
-      return entries;
+      result.push({ key, values, metrics, best, worst, hasDifference });
+      return result;
     }, []);
+
+    const priority = (entry: MultiComparisonEntry) => {
+      if (entry.key.startsWith('item-name\u0000')) {
+        return 0;
+      }
+      if (entry.hasDifference) {
+        return 1;
+      }
+      if (entry.metrics.some((metric) => metric !== null)) {
+        return 2;
+      }
+      return 3;
+    };
+
+    return entries
+      .map((entry, sourceIndex) => ({entry, sourceIndex}))
+      .sort((left, right) => priority(left.entry) - priority(right.entry) || left.sourceIndex - right.sourceIndex)
+      .map(({entry}) => entry);
   };
 
   private _isLowerBetterText = (text: string) => {

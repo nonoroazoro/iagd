@@ -1,4 +1,3 @@
-import {h} from "preact";
 import Item, { getUniqueId } from '../components/Item/Item';
 import IItem from '../interfaces/IItem';
 import './ItemContainer.css';
@@ -11,7 +10,6 @@ import ICollectionItem from '../interfaces/ICollectionItem';
 import {PureComponent} from "preact/compat";
 import ItemComparer from "../components/Item/ItemComparer";
 import IItemType from "../interfaces/IItemType";
-import React from "react";
 
 interface Props {
   items: IItem[][];
@@ -86,7 +84,7 @@ class ItemContainer extends PureComponent<Props, object> {
     }
   }
 
-  componentDidUpdate(props: Props) {
+  componentDidUpdate() {
     setTimeout(() => ReactTooltip.rebuild(), 1250); // TODO: This seems like a stupid way to solve tooltip issues.
   }
 
@@ -138,8 +136,7 @@ class ItemContainer extends PureComponent<Props, object> {
         .map(m => m.filter(o => o.type === IItemType.Player).length)
         .reduce((a,b) => a + b, 0);
 
-      console.log(items, numItemsDisplayed);
-      const renderItem = React.useCallback((items, i) => (
+      const renderItem = (items: IItem[]) => (
         <Item
           items={items}
           key={getUniqueId(items[0])}
@@ -150,7 +147,7 @@ class ItemContainer extends PureComponent<Props, object> {
           showBackupCloudIcon={this.props.showBackupCloudIcon}
           hideItemSkills={this.props.hideItemSkills}
         />
-      ), [this.props.items]);
+      );
       return (
         <div class="items">
           <div class="clipboard-container">
