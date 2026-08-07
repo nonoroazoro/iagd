@@ -7,6 +7,7 @@ interface Props {
   close: () => void;
 }
 
+// App owns dismissal because this component is unmounted when leaving the search tab.
 class ModFilterWarning extends PureComponent<Props> {
   render() {
     return (

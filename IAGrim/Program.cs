@@ -206,6 +206,30 @@ namespace IAGrim
             var databaseItemStatDao = serviceProvider.Get<IDatabaseItemStatDao>();
             var itemSkillDao = serviceProvider.Get<IItemSkillDao>();
             ParsingService parsingService = new ParsingService(itemTagDao, string.Empty, databaseItemDao, databaseItemStatDao, itemSkillDao, settingsService.GetLocal().LanguageCode);
+
+            // Before the main window exists: this is modal, and it may reload the language.
+            var grimDawnDetector = serviceProvider.Get<GrimDawnDetector>();
+            var autoParsed = StartupService.PerformMissingExpansionDataCheck(
+                parsingService,
+                databaseItemDao,
+                serviceProvider.Get<IPlayerItemDao>(),
+                grimDawnDetector,
+                settingsService
+            );
+            Timed("PerformMissingExpansionDataCheck");
+
+            // Only if the parse above didn't already run, it parses in the current language anyway.
+            if (!autoParsed) {
+                autoParsed = StartupService.PerformLanguageChangeCheck(
+                    parsingService,
+                    databaseItemDao,
+                    serviceProvider.Get<IPlayerItemDao>(),
+                    grimDawnDetector,
+                    settingsService
+                );
+                Timed("PerformLanguageChangeCheck");
+            }
+
             StartupService.PrintStartupInfo(factory, settingsService);
 
             // TODO: Offload to the new language loader
@@ -226,8 +250,10 @@ namespace IAGrim
 
             Logger.Info("Checking for database updates..");
 
-            var grimDawnDetector = serviceProvider.Get<GrimDawnDetector>();
-            StartupService.PerformIconCheck(grimDawnDetector, settingsService);
+            // An automatic parse already queued a full icon extraction, no need to scan the arc files twice.
+            if (!autoParsed) {
+                StartupService.PerformIconCheck(grimDawnDetector, settingsService);
+            }
 
 
             if (settingsService.GetPersistent().DarkMode) {

@@ -10,6 +10,8 @@ namespace IAGrim.Settings.Dto {
 
         private List<string>? _grimDawnLocation;
         private string? _currentGrimdawnLocation;
+        private string? _currentGrimdawnMod;
+        private List<string>? _autoParsedExpansions;
         private bool? _preferDelayedSearch;
         private int _backupNumber;
         private long? _lastNagTimestamp;
@@ -22,6 +24,7 @@ namespace IAGrim.Settings.Dto {
         private bool _lastSelectedTargetModIsHc;
         private string? _localizationFile;
         private string? _languageCode;
+        private string? _parsedLanguageCode;
         private WindowSizeManager.WindowSizeProps? _windowPositionSettings;
         private bool _backupCustom;
         private bool _optOutOfBackups;
@@ -153,10 +156,47 @@ namespace IAGrim.Settings.Dto {
             }
         }
 
+        /// <summary>
+        /// The language the game database was last parsed with. Item names are stored translated, so a
+        /// language change only takes effect on the items already in the database once we parse again.
+        /// </summary>
+        public string ParsedLanguageCode {
+            get => _parsedLanguageCode ?? string.Empty;
+            set {
+                _parsedLanguageCode = value;
+                OnMutate?.Invoke(null, EventArgs.Empty);
+            }
+        }
+
         public string CurrentGrimdawnLocation {
             get => _currentGrimdawnLocation ?? string.Empty;
             set {
                 _currentGrimdawnLocation = value;
+                OnMutate?.Invoke(null, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// The mod that was selected the last time the database was parsed, so that an automatic
+        /// re-parse doesn't silently downgrade a modded database to vanilla.
+        /// </summary>
+        public string CurrentGrimdawnMod {
+            get => _currentGrimdawnMod ?? string.Empty;
+            set {
+                _currentGrimdawnMod = value;
+                OnMutate?.Invoke(null, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>
+        /// Expansions we have already attempted an automatic database parse for.
+        /// Prevents re-parsing on every startup when the parse doesn't produce the expected data
+        /// (broken install, unsupported game version, ..).
+        /// </summary>
+        public List<string> AutoParsedExpansions {
+            get => _autoParsedExpansions ?? new List<string>();
+            set {
+                _autoParsedExpansions = value;
                 OnMutate?.Invoke(null, EventArgs.Empty);
             }
         }

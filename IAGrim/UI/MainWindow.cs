@@ -48,6 +48,7 @@ namespace IAGrim.UI {
         private readonly List<IMessageProcessor> _messageProcessors = new List<IMessageProcessor>();
 
         private SplitSearchWindow? _searchWindow;
+        private DarkMode? _darkMode;
 
         private CsvFileMonitor? _csvFileMonitor = new CsvFileMonitor();
         private CsvFileMonitor? _replicaCsvFileMonitor = new CsvFileMonitor();
@@ -244,63 +245,73 @@ namespace IAGrim.UI {
                 }
                 else {
 
-                    if (args.IsSuccess) {
-                        Logger.Info("WebView2 initialization successful");
-
-                    } else {
+                    if (!args.IsSuccess) {
                         Logger.Error("WebView2 initialization failed");
                         Logger.Error("Try manually installing the Microsoft Edge WebView2 Runtime");
                         if (args.InitializationException != null) {
                             Logger.Fatal($"Exception: {args.InitializationException.Message}", args.InitializationException);
-                            MessageBox.Show($"A a fatal error occurred while attempting to initialize the Microsoft Edge WebView2 Runtime\nError: {args.InitializationException.Message}\nTry manuall installing the Microsoft WebView2 Runtime", "Error - WebView2", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            MessageBox.Show($"A fatal error occurred while attempting to initialize the Microsoft Edge WebView2 Runtime\nError: {args.InitializationException.Message}\nTry manually installing the Microsoft WebView2 Runtime", "Error - WebView2", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         } else {
                             Logger.Fatal("No exception provided, cause unknown");
-                            MessageBox.Show($"A a fatal error occurred while attempting to initialize the Microsoft Edge WebView2 Runtime\n(Exception details unavailable)\nTry manuall installing the Microsoft WebView2 Runtime", "Error - WebView2", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            MessageBox.Show($"A fatal error occurred while attempting to initialize the Microsoft Edge WebView2 Runtime\n(Exception details unavailable)\nTry manually installing the Microsoft WebView2 Runtime", "Error - WebView2", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         }
 
+                        // CoreWebView2 is null at this point, there's nothing more to initialize.
+                        return;
                     }
 
-                    browser.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                        "app",
-                        GlobalPaths.StorageFolder,
-                        CoreWebView2HostResourceAccessKind.Allow
-                    );
-                    browser.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+                    Logger.Info("WebView2 initialization successful");
+
+                    // Anything below this point is our own initialization, not WebView2's.
+                    // WebView2 raises this event from within its own try/catch, so letting an exception escape here
+                    // makes the control re-raise the event as an "initialization failure" carrying our exception,
+                    // which then gets reported to the user as a broken WebView2 runtime.
+                    try {
+                        browser.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                            "app",
+                            GlobalPaths.StorageFolder,
+                            CoreWebView2HostResourceAccessKind.Allow
+                        );
+                        browser.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
 
 
 
-                    var searchController = _serviceProvider.Get<SearchController>();
-                    _cefBrowserHandler.InitializeChromium(browser, searchController.JsIntegration, tabControl1);
-                    _cefBrowserHandler.IsReady = true;
+                        var searchController = _serviceProvider.Get<SearchController>();
+                        _cefBrowserHandler.InitializeChromium(browser, searchController.JsIntegration, tabControl1);
+                        _cefBrowserHandler.IsReady = true;
 
-                    _searchWindow?.UpdateListViewDelayed();
+                        _searchWindow?.UpdateListViewDelayed();
 
-                    var isGdParsed = _serviceProvider.Get<IDatabaseItemDao>().GetRowCount() > 0;
-                    var settingsService = _serviceProvider.Get<SettingsService>();
-                    _cefBrowserHandler.SetDarkMode(settingsService.GetPersistent().DarkMode);
-                    _cefBrowserHandler.SetHideItemSkills(settingsService.GetPersistent().HideSkills);
-                    _cefBrowserHandler.SetIsGrimParsed(isGdParsed);
+                        var isGdParsed = _serviceProvider.Get<IDatabaseItemDao>().GetRowCount() > 0;
+                        var settingsService = _serviceProvider.Get<SettingsService>();
+                        _cefBrowserHandler.SetDarkMode(settingsService.GetPersistent().DarkMode);
+                        _cefBrowserHandler.SetHideItemSkills(settingsService.GetPersistent().HideSkills);
+                        _cefBrowserHandler.SetIsGrimParsed(isGdParsed);
 
 
-                    _cefBrowserHandler.SetOnlineBackupsEnabled(!settingsService.GetLocal().OptOutOfBackups);
+                        _cefBrowserHandler.SetOnlineBackupsEnabled(!settingsService.GetLocal().OptOutOfBackups);
 
-                    var numItems = _serviceProvider.Get<IPlayerItemDao>().GetNumItems();
-                    _cefBrowserHandler.SetIsFirstRun(numItems == 0);
-                    if (numItems == 0) {
-                    } else if (DateTime.Now.Month == 4 && DateTime.Now.Day == 1) {
-                        if (settingsService.GetLocal().EasterPrank) {
-                            _cefBrowserHandler.SetEasterEggMode();
-                            settingsService.GetLocal().EasterPrank = false;
+                        var numItems = _serviceProvider.Get<IPlayerItemDao>().GetNumItems();
+                        _cefBrowserHandler.SetIsFirstRun(numItems == 0);
+                        if (numItems == 0) {
+                        } else if (DateTime.Now.Month == 4 && DateTime.Now.Day == 1) {
+                            if (settingsService.GetLocal().EasterPrank) {
+                                _cefBrowserHandler.SetEasterEggMode();
+                                settingsService.GetLocal().EasterPrank = false;
+                            }
                         }
-                    }
-                    else {
-                        settingsService.GetLocal().EasterPrank = true;
-                    }
+                        else {
+                            settingsService.GetLocal().EasterPrank = true;
+                        }
 
-                    // Introduce the numeric stat filter to established users who haven't found it yet.
-                    var persistent = settingsService.GetPersistent();
-                    if (numItems >= NumericFilterBannerMinItems && !persistent.NumericFilterUsed && !persistent.NumericFilterBannerDismissed) {
-                        _cefBrowserHandler.SetShowNumericFilterBanner(true);
+                        // Introduce the numeric stat filter to established users who haven't found it yet.
+                        var persistent = settingsService.GetPersistent();
+                        if (numItems >= NumericFilterBannerMinItems && !persistent.NumericFilterUsed && !persistent.NumericFilterBannerDismissed) {
+                            _cefBrowserHandler.SetShowNumericFilterBanner(true);
+                        }
+                    } catch (Exception ex) {
+                        Logger.Fatal($"Error initializing the user interface: {ex.Message}", ex);
+                        MessageBox.Show($"An error occurred while initializing Item Assistant\nError: {ex.Message}\n\nSee the log file for details.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }
@@ -503,6 +514,14 @@ namespace IAGrim.UI {
 
         private void DatabaseLoadedTrigger() {
             _searchWindow?.UpdateInterface();
+
+            // UpdateInterface() rebuilds the search filter panel from scratch, so the new controls
+            // come up with their (light) designer colors. Re-theme them, or the left hand filter
+            // menu loses dark mode after parsing Grim Dawn. No-op when dark mode is off.
+            if (_searchWindow != null) {
+                _darkMode?.Reapply(_searchWindow);
+            }
+
             _searchWindow?.UpdateListViewDelayed();
             _itemReplicaService?.Reset();
         }
@@ -617,6 +636,7 @@ namespace IAGrim.UI {
 
 
             var dm = new DarkMode(this);
+            _darkMode = dm;
             UIHelper.AddAndShow(
                 new SettingsWindow(
                     _cefBrowserHandler,
