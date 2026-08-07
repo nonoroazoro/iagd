@@ -1,41 +1,26 @@
 ﻿using IAGrim.Database.Interfaces;
 using IAGrim.Parsers.Arz;
-using IAGrim.Parsers.GameDataParsing.Model;
-using IAGrim.Parsers.GameDataParsing.Service;
 using IAGrim.Utilities;
 using log4net;
-using StatTranslator;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using IAGrim.Settings;
-using IAGrim.Settings.Dto;
 
 namespace IAGrim.UI {
     public partial class LanguagePackPicker : Form {
         private static readonly ILog Logger = LogManager.GetLogger(typeof(LanguagePackPicker));
         private IEnumerable<string>? _paths;
         private readonly List<FirefoxRadioButton> _checkboxes = new List<FirefoxRadioButton>();
-        private readonly IItemTagDao _itemTagDao;
-        private readonly IPlayerItemDao _playerItemDao;
-        private readonly ParsingService _parsingService;
         private readonly SettingsService _settings;
+        private Panel? _languageList;
 
-        public LanguagePackPicker(
-            IItemTagDao itemTagDao,
-            IPlayerItemDao playerItemDao,
-            ParsingService parsingService,
-            SettingsService settings
-        ) {
+        public LanguagePackPicker(SettingsService settings) {
             InitializeComponent();
 
-            _parsingService = parsingService;
             _settings = settings;
-            _itemTagDao = itemTagDao;
-            _playerItemDao = playerItemDao;
         }
 
         public DialogResult Show(IEnumerable<string> paths) {
@@ -77,6 +62,12 @@ namespace IAGrim.UI {
         private void LanguagePackPicker_Load(object sender, EventArgs e) {
             LocalizationLoader.ApplyLanguage(Controls, RuntimeSettings.Language!);
 
+            if (_languageList != null) {
+                groupBox1.Controls.Remove(_languageList);
+                _languageList.Dispose();
+            }
+            _checkboxes.Clear();
+
             var scaleX = pictureBox1.Width / 120F;
             var scaleY = pictureBox1.Height / 119F;
             int ScaleX(int value) => (int)Math.Round(value * scaleX);
@@ -89,6 +80,7 @@ namespace IAGrim.UI {
                     pictureBox1.Left - ScaleX(8),
                     groupBox1.ClientSize.Height - ScaleY(22))
             };
+            _languageList = languageList;
             groupBox1.Controls.Add(languageList);
 
             var n = 0;

@@ -207,26 +207,7 @@ namespace StatTranslator
         }
 
         /// <summary>
-        /// Join tag values into one name, gendered to agree with each other. The item name is the only part
-        /// with a single gendered form, so it is what the styles and qualities around it have to agree with.
-        /// Prefer this over <see cref="TranslateName(string)"/> whenever the individual tag values are still
-        /// available: once they are concatenated, a name that carries no gender of its own (an untranslated
-        /// tag) can no longer be told apart from the trailing variant of the tag before it.
-        /// </summary>
-        public static string Combine(params string?[] tagValues) {
-            var values = tagValues.Where(v => !string.IsNullOrEmpty(v)).Select(v => v!).ToList();
-
-            var gender = values
-                .Select(ParseGenderedTags)
-                .SelectMany(tags => tags)
-                .FirstOrDefault(tag => tag.Codes.Count == 1)
-                .Codes?.FirstOrDefault();
-
-            return string.Join(" ", values.Select(v => Resolve(v, gender)).Where(v => !string.IsNullOrEmpty(v)));
-        }
-
-        /// <summary>
-        /// Resolve an already concatenated name. Best effort -- see <see cref="Combine"/>.
+        /// Resolve an already concatenated name.
         /// </summary>
         public string TranslateName(string rawName) {
             if (string.IsNullOrEmpty(rawName) || !rawName.Contains("[")) {

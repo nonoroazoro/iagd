@@ -25,6 +25,8 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
         private readonly string _languageCode;
         public event EventHandler? OnParseComplete;
 
+        public string LanguageCode => _languageCode;
+
 
         public ParsingService(
             IItemTagDao itemTagDao,
@@ -52,7 +54,7 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
                     string expansionItems = GrimFolderUtility.FindArzFile(path);
 
                     if (!string.IsNullOrEmpty(expansionItems)) {
-                        arzFiles.Add(GrimFolderUtility.FindArzFile(expansionItems));
+                        arzFiles.Add(expansionItems);
                     }
                 }
 
@@ -72,14 +74,12 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             _modLocation = mod;
         }
 
-        public void Execute() {
-            var form = new ParsingDatabaseProgressView();
-            var parser = new ArzParsingWrapper();
-
+        public bool Execute() {
             string arcFileName = $"text_{_languageCode.ToLowerInvariant()}.arc";
 
             // Always load English first as fallback, then overlay selected language
             List<string> tagfiles = new List<string>();
+            var selectedLanguageTagsFound = _languageCode.Equals("EN", StringComparison.OrdinalIgnoreCase);
 
             // English tags first (fallback)
             string vanillaEnTags = GrimFolderUtility.FindArcFile(_grimdawnLocation, "text_en.arc");
@@ -104,6 +104,7 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
                 string vanillaLangTags = GrimFolderUtility.FindArcFile(_grimdawnLocation, arcFileName);
                 if (!string.IsNullOrEmpty(vanillaLangTags)) {
                     tagfiles.Add(vanillaLangTags);
+                    selectedLanguageTagsFound = true;
                 }
 
                 foreach (string path in GrimFolderUtility.GetGrimExpansionFolders(_grimdawnLocation)) {
@@ -122,22 +123,37 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
 
 
 
-            List<string> arzFiles = new List<string> {
-                GrimFolderUtility.FindArzFile(_grimdawnLocation)
-            };
+            var baseArzFile = GrimFolderUtility.FindArzFile(_grimdawnLocation);
+            if (string.IsNullOrEmpty(baseArzFile) || tagfiles.Count == 0 || !selectedLanguageTagsFound) {
+                Logger.Warn($"The selected Grim Dawn folder is missing required database or text archives: {_grimdawnLocation}");
+                ShowInvalidGameDataMessage();
+                return false;
+            }
+
+            List<string> arzFiles = new List<string> { baseArzFile };
 
             foreach (string path in GrimFolderUtility.GetGrimExpansionFolders(_grimdawnLocation)) {
                 string expansionItems = GrimFolderUtility.FindArzFile(path);
 
                 if (!string.IsNullOrEmpty(expansionItems)) {
-                    arzFiles.Add(GrimFolderUtility.FindArzFile(expansionItems));
+                    arzFiles.Add(expansionItems);
                 }
             }
 
             if (!string.IsNullOrEmpty(_modLocation)) {
-                arzFiles.Add(GrimFolderUtility.FindArzFile(_modLocation));
+                var modArzFile = GrimFolderUtility.FindArzFile(_modLocation);
+                if (string.IsNullOrEmpty(modArzFile)) {
+                    Logger.Warn($"The selected mod folder is missing its database archive: {_modLocation}");
+                    ShowInvalidGameDataMessage();
+                    return false;
+                }
+
+                arzFiles.Add(modArzFile);
             }
 
+            var form = new ParsingDatabaseProgressView();
+            var parser = new ArzParsingWrapper();
+            var succeeded = false;
 
             // Invoke the background thread & show progress UI
             Thread t = new Thread(() => {
@@ -145,11 +161,16 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
 
                 try {
                     ExecuteParse(parser, form, tagfiles, arzFiles);
+                    succeeded = true;
                 }
                 catch (IOException ex) {
                     // Grim Dawn itself does not block us from reading its files, but Steam mid-update (or antivirus) can
                     Logger.Warn($"Unable to read the Grim Dawn game files (HResult 0x{ex.HResult:X8}): {ex.Message}", ex);
                     ShowGameFilesInUseMessage();
+                }
+                catch (Exception ex) {
+                    Logger.Error("Unable to parse the Grim Dawn game data.", ex);
+                    ShowInvalidGameDataMessage();
                 }
                 finally {
                     try {
@@ -161,10 +182,16 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
                 }
             });
 
-            t.Start();
+            t.IsBackground = true;
+            t.Name = "DatabaseParsing";
+            form.Shown += (_, _) => t.Start();
             form.ShowDialog();
 
-            OnParseComplete?.Invoke(this, EventArgs.Empty);
+            if (succeeded) {
+                OnParseComplete?.Invoke(this, EventArgs.Empty);
+            }
+
+            return succeeded;
         }
 
         private void ShowGameFilesInUseMessage() {
@@ -177,6 +204,16 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             MessageBox.Show(message, "Grim Dawn files in use", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
+        private void ShowInvalidGameDataMessage() {
+            var message = RuntimeSettings.Language?.GetTag("iatag_ui_corrupted");
+            if (string.IsNullOrEmpty(message)) {
+                message = "Unable to parse the Grim Dawn game data. Please verify the installation and try again.";
+            }
+
+            var title = RuntimeSettings.Language?.GetTag("iatag_ui_db_invalidlocation_title") ?? "Invalid game data";
+            MessageBox.Show(message, title, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+
         private void ExecuteParse(
             ArzParsingWrapper parser,
             ParsingDatabaseProgressView form,
@@ -184,10 +221,17 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             List<string> arzFiles
         ) {
             parser.LoadTags(tagfiles, new WinformsProgressBar(form.LoadingTags).Tracker);
-            _itemTagDao.Save(parser.Tags, new WinformsProgressBar(form.SavingTags).Tracker);
             parser.LoadItems(arzFiles, new WinformsProgressBar(form.LoadingItems).Tracker);
             parser.MapItemNames(new WinformsProgressBar(form.MappingItemNames).Tracker);
             parser.RenamePetStats(new WinformsProgressBar(form.MappingPetStats).Tracker);
+
+            if (parser.Items == null || parser.Items.Count == 0 || parser.Tags.Count == 0) {
+                throw new InvalidOperationException("The parsed Grim Dawn data contains no items or tags.");
+            }
+
+            // Do not clear the existing parsed database until all game files have been read successfully.
+            _databaseItemDao.Clean();
+            _itemTagDao.Save(parser.Tags, new WinformsProgressBar(form.SavingTags).Tracker);
             _databaseItemDao.Save(parser.Items ?? [], new WinformsProgressBar(form.SavingItems).Tracker);
             _databaseItemDao.CreateItemIndexes(new WinformsProgressBar(form.IndexingItems).Tracker);
 

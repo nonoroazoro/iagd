@@ -96,20 +96,13 @@ namespace IAGrim.Parsers.Arz {
         /// </summary>
         /// <param name="modPath"></param>
         public static void LoadSelectedModIcons(string modPath) {
-            // Runs on a threadpool thread; an escaping exception would take down the process.
+            // Runs on the icon extraction thread; failures are cosmetic and must not escape.
             try {
-                var fileNames = Directory.EnumerateFiles(modPath, "*items.arc", SearchOption.AllDirectories).ToList();
+                var arcFiles = Directory.EnumerateFiles(modPath, "*items.arc", SearchOption.AllDirectories);
 
-                foreach (var fileName in fileNames) {
-                    var arcFile = GrimFolderUtility.FindArcFile(modPath, fileName);
-
-                    if (!string.IsNullOrEmpty(arcFile)) {
-                        Logger.Debug($"Loading mods icons from {arcFile} ({modPath})");
-                        LoadIcons(arcFile);
-                    }
-                    else {
-                        Logger.Warn($"Could not find the file {arcFile}, skipping.");
-                    }
+                foreach (var arcFile in arcFiles) {
+                    Logger.Debug($"Loading mod icons from {arcFile} ({modPath})");
+                    LoadIcons(arcFile);
                 }
             }
             catch (Exception ex) {
@@ -122,6 +115,7 @@ namespace IAGrim.Parsers.Arz {
 
             if (!File.Exists(arcItemsFile)) {
                 Logger.Warn($"Item icon file \"{arcItemsFile}\" could not be located.");
+                return;
             }
 
             try {

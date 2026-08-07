@@ -280,7 +280,7 @@ namespace IAGrim.Utilities {
                 Skill = (item.Skill != null && !skipStats) ? GetJsonSkill(item.Skill) : null,
                 GreenRarity = (int)item.PrefixRarity,
                 HasCloudBackup = isCloudSynced,
-                Slot = SlotTranslator.Translate(RuntimeSettings.Language!, item.Slot ?? ""),
+                Slot = SlotTranslator.Translate(RuntimeSettings.ItemLanguage!, item.Slot ?? ""),
                 Extras = extras,
                 IsMonsterInfrequent = item.ModifiedSkills.Any(s => s.IsMonsterInfrequent),
                 IsHardcore = isHardcore,

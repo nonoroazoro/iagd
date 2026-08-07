@@ -11,8 +11,8 @@ namespace IAGrim.Database.Model {
         public long Num { get; set; }
         public string? Quality { get; set; }
         public string? Slot { get; set; }
-        public string TranslatedSlot => RuntimeSettings.Language != null
-            ? SlotTranslator.Translate(RuntimeSettings.Language, Slot ?? "")
+        public string TranslatedSlot => RuntimeSettings.ItemLanguage != null
+            ? SlotTranslator.Translate(RuntimeSettings.ItemLanguage, Slot ?? "")
             : Slot ?? "";
 
     }

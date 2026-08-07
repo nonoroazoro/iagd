@@ -2,9 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
 using DataAccess;
 using EvilsoftCommons;
 using IAGrim.Database;
@@ -12,10 +9,8 @@ using IAGrim.Database.Interfaces;
 using IAGrim.Parser.Arc;
 using IAGrim.Parsers.Arz;
 using IAGrim.Parsers.GameDataParsing.Model;
-using IAGrim.Utilities;
 using StatTranslator;
 using log4net;
-using log4net.Repository.Hierarchy;
 
 namespace IAGrim.Parsers.GameDataParsing.Service {
     class ArzParsingWrapper {
@@ -29,7 +24,7 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             List<string> arzFiles,
             ProgressTracker tracker
         ) {
-            tracker.MaxValue = arzFiles.Select(File.Exists).Count();
+            tracker.MaxValue = arzFiles.Count(File.Exists);
 
             // Developers can flip this switch to get a full dump of the GD database.
             // Setting it to true will cause the parsing to skip a lot of data that IA does not need.
@@ -49,7 +44,6 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             }
             catch (ArgumentException ex) {
                 Logger.Warn(ex.Message, ex);
-                MessageBox.Show(RuntimeSettings.Language?.GetTag("iatag_ui_corrupted") ?? string.Empty);
                 throw;
             }
 
@@ -100,30 +94,29 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             if (Items == null)
                 return;
 
-            var tags = Tags;
+            var tags = _tagAccumulator.MappedTags;
+            var itemNameOrder = tags.TryGetValue("tagItemNameOrder", out var parsedItemNameOrder)
+                && !string.IsNullOrWhiteSpace(parsedItemNameOrder)
+                    ? parsedItemNameOrder
+                    : EnglishLanguage.ItemNameOrderFallback;
+            var itemNameCombinator = new ItemNameCombinator(itemNameOrder);
+
+            string ResolveTag(string tag) {
+                return !string.IsNullOrEmpty(tag) && tags.TryGetValue(tag, out var name)
+                    ? name
+                    : string.Empty;
+            }
 
             tracker.MaxValue = Items.Count;
 
             Parallel.For(0, Items.Count, i => {
                 var item = Items[i];
                 if (!item.Slot.StartsWith("Loot")) {
-                    var keytags = new[] {
-                        item.GetTag("itemStyleTag"), item.GetTag("itemNameTag", "description"),
-                        item.GetTag("itemQualityTag")
-                    };
+                    var quality = ResolveTag(item.GetTag("itemQualityTag"));
+                    var style = ResolveTag(item.GetTag("itemStyleTag"));
+                    var name = ResolveTag(item.GetTag("itemNameTag", "description"));
 
-                    List<string> finalTags = new List<string>();
-                    foreach (var tag in keytags) {
-                        var t = tags.FirstOrDefault(m => m.Tag == tag);
-                        if (t?.Name != null) {
-                            finalTags.Add(t.Name);
-                        }
-                    }
-
-                    // Combine rather than join: in a gendered language each of these tags carries every
-                    // gendered form ("[ms]Mächtiger[fs]Mächtige.."), and only the item name settles which
-                    // one the others have to use.
-                    Items[i].Name = ItemNameCombinator.Combine(finalTags.ToArray());
+                    Items[i].Name = itemNameCombinator.TranslateName(string.Empty, quality, style, name, string.Empty);
                     Items[i].NameLowercase = Items[i].Name?.ToLowerInvariant() ?? string.Empty;
                 }
 
@@ -141,11 +134,17 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             if (Items == null)
                 return;
 
-            var petRecords = Items.SelectMany(m => (m.Stats ?? Enumerable.Empty<DatabaseItemStat>()).Where(s => s.Stat == "petBonusName")
+            var petRecords = Items
+                .SelectMany(m => (m.Stats ?? Enumerable.Empty<DatabaseItemStat>())
+                    .Where(s => s.Stat == "petBonusName")
                     .Select(s => s.TextValue))
-                .ToList(); // ToList for performance reasons
+                .OfType<string>()
+                .Where(record => !string.IsNullOrEmpty(record))
+                .ToHashSet(StringComparer.Ordinal);
 
-            var petItems = Items.Where(m => petRecords.Contains(m.Record)).ToList();
+            var petItems = Items
+                .Where(m => m.Record != null && petRecords.Contains(m.Record))
+                .ToList();
             tracker.MaxValue = petItems.Count;
             foreach (var petItem in petItems) {
                 var stats = (petItem.Stats ?? Enumerable.Empty<DatabaseItemStat>()).Select(s => new DatabaseItemStat {
@@ -160,11 +159,8 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
                 tracker.Increment();
             }
 
-            Items.RemoveAll(m => petRecords.Contains(m.Record));
-            Items.AddRange(petItems);
-
             tracker.MaxProgress();
-            Logger.Debug($"Classified {petItems.Count()} records as pet stats");
+            Logger.Debug($"Classified {petItems.Count} records as pet stats");
         }
 
         /// <summary>

@@ -157,8 +157,8 @@ namespace IAGrim.Settings.Dto {
         }
 
         /// <summary>
-        /// The language the game database was last parsed with. Item names are stored translated, so a
-        /// language change only takes effect on the items already in the database once we parse again.
+        /// The language the game database was last parsed with. It is intentionally independent from the
+        /// interface language so a translated Grim Dawn client can keep localized item names in an English UI.
         /// </summary>
         public string ParsedLanguageCode {
             get => _parsedLanguageCode ?? string.Empty;
@@ -189,9 +189,8 @@ namespace IAGrim.Settings.Dto {
         }
 
         /// <summary>
-        /// Expansions we have already attempted an automatic database parse for.
-        /// Prevents re-parsing on every startup when the parse doesn't produce the expected data
-        /// (broken install, unsupported game version, ..).
+        /// Expansions for which an automatic database parse completed successfully.
+        /// Prevents repeated parsing when an installed expansion has no matching records.
         /// </summary>
         public List<string> AutoParsedExpansions {
             get => _autoParsedExpansions ?? new List<string>();

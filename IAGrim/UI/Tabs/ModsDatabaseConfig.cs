@@ -109,29 +109,41 @@ namespace IAGrim.UI {
         /// Sets the "last database update" timestamp to 0 to force an update
         /// Queues a database update, followed by an item stat update.
         /// </summary>
-        public void ForceDatabaseUpdate(string? location, string? modLocation) {
+        public bool ForceDatabaseUpdate(string? location, string? modLocation) {
             var parsed = false;
 
             if (!string.IsNullOrEmpty(location) && Directory.Exists(location)) {
                 _parsingService.Update(location, modLocation ?? string.Empty);
-                _parsingService.Execute();
-                parsed = true;
+                parsed = _parsingService.Execute();
 
-                // The tags were just dropped and rebuilt, in whatever language is currently selected.
-                // The language has to be reloaded from them before the item names below are generated,
-                // or the names come out ordered for the language that was parsed previously.
-                _settingsService.GetLocal().ParsedLanguageCode = _settingsService.GetLocal().LanguageCode;
-                RuntimeSettings.InitializeLanguage(_settingsService.GetLocal().LanguageCode, _databaseItemDao.GetTagDictionary());
+                if (parsed) {
+                    // Reload the UI language from the rebuilt game tags while preserving the independently
+                    // selected language used for parsed item names.
+                    _settingsService.GetLocal().ParsedLanguageCode = _parsingService.LanguageCode;
+                    RuntimeSettings.InitializeLanguage(
+                        _settingsService.GetLocal().LanguageCode,
+                        _settingsService.GetLocal().ParsedLanguageCode,
+                        _databaseItemDao.GetTagDictionary());
+                }
             }
             else {
                 Logger.Warn("Could not find the Grim Dawn install location");
             }
 
-            // Update item stats as well
-            var updatingPlayerItemsScreen = new UpdatingPlayerItemsScreen(_playerItemDao);
+            if (parsed) {
+                using var updatingPlayerItemsScreen = new UpdatingPlayerItemsScreen(_playerItemDao);
+                updatingPlayerItemsScreen.ShowDialog();
 
-            updatingPlayerItemsScreen.ShowDialog();
-            _itemViewUpdateTrigger?.Invoke();
+                _settingsService.GetLocal().CurrentGrimdawnLocation = location ?? string.Empty;
+                _settingsService.GetLocal().CurrentGrimdawnMod = modLocation ?? string.Empty;
+                _settingsService.GetLocal().GrimDawnLocationLastModified = ParsingService.GetHighestTimestamp(location ?? string.Empty);
+                _settingsService.GetLocal().HasWarnedGrimDawnUpdate = false;
+
+                var isGdParsed = _databaseItemDao.GetRowCount() > 0;
+                _settingsService.GetLocal().IsGrimDawnParsed = isGdParsed;
+                _helpService.SetIsGrimParsed(isGdParsed);
+                _itemViewUpdateTrigger?.Invoke();
+            }
 
             // Icons go last. Extraction is memory hungry, so running it alongside the database
             // parse spikes peak memory (out of memory on lower end machines) and slows the parse
@@ -141,6 +153,8 @@ namespace IAGrim.UI {
             if (parsed) {
                 ArzParser.QueueIconExtraction(location, modLocation);
             }
+
+            return parsed;
         }
 
         private static ListViewEntry? GetFirst(ListView lv) {
@@ -154,10 +168,6 @@ namespace IAGrim.UI {
         private void buttonForceUpdate_Click(object sender, EventArgs e) {
             // Grim Dawn holds its .arc resources open for the whole session, but only with
             // FILE_SHARE_READ -- they remain readable, so there is no need to block parsing here.
-            _databaseItemDao.Clean();
-
-            var isGdParsed2 = _databaseItemDao.GetRowCount() > 0;
-
             var mod = GetFirst(listViewMods);
             var entry = GetFirst(listViewInstalls);
 
@@ -167,20 +177,9 @@ namespace IAGrim.UI {
             }
 
             // Icons (base game, expansions and the selected mod) are queued by ForceDatabaseUpdate.
-            ForceDatabaseUpdate(entry.Path, mod?.Path);
-            _settingsService.GetLocal().CurrentGrimdawnLocation = entry.Path ?? string.Empty;
-
-            // Remembered so an automatic re-parse doesn't silently downgrade a modded database to vanilla.
-            _settingsService.GetLocal().CurrentGrimdawnMod = mod?.Path ?? string.Empty;
-
-            // Store the loaded GD path, so we can poll it for updates later.
-            //_settingsService.GetLocal().GrimDawnLocation = new List<string> { entry.Path }; // TODO: Wtf is this? Why overwrite any existing?
-            _settingsService.GetLocal().GrimDawnLocationLastModified = ParsingService.GetHighestTimestamp(entry.Path ?? string.Empty);
-            _settingsService.GetLocal().HasWarnedGrimDawnUpdate = false;
-
-            var isGdParsed = _databaseItemDao.GetRowCount() > 0;
-            _settingsService.GetLocal().IsGrimDawnParsed = isGdParsed;
-            _helpService.SetIsGrimParsed(isGdParsed);
+            if (!ForceDatabaseUpdate(entry.Path, mod?.Path)) {
+                return;
+            }
         }
 
         private void listView1_SelectedIndexChanged(object sender, EventArgs e) {

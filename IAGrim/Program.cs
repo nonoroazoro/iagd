@@ -4,6 +4,7 @@ using IAGrim.Backup.Cloud;
 using IAGrim.Database;
 using IAGrim.Database.Interfaces;
 using IAGrim.Database.Migrations;
+using IAGrim.Parsers.Arz;
 using IAGrim.Parsers.GameDataParsing.Service;
 using IAGrim.Services;
 using IAGrim.Settings;
@@ -38,6 +39,29 @@ namespace IAGrim
         }
 
         public static MainWindow? MainWindow => _mw;
+
+        private static bool ContainsChineseText(IEnumerable<string> values) {
+            foreach (var value in values) {
+                foreach (var character in value) {
+                    if (character is >= '\u3400' and <= '\u9FFF') {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasChineseGameArchive(GrimDawnDetector grimDawnDetector) {
+            try {
+                return LanguageMapping.GetAvailableLanguages(grimDawnDetector.GetGrimLocations())
+                    .Any(code => code.Equals("ZH", StringComparison.OrdinalIgnoreCase));
+            }
+            catch (Exception ex) {
+                Logger.Warn("Unable to inspect Grim Dawn language archives; using the parsed tags instead.", ex);
+                return false;
+            }
+        }
 
 
         /// <summary>
@@ -184,9 +208,18 @@ namespace IAGrim
             Timed("ServiceProvider.Initialize");
 
             var settingsService = serviceProvider.Get<SettingsService>();
+            var grimDawnDetector = serviceProvider.Get<GrimDawnDetector>();
 
             var databaseItemDao = serviceProvider.Get<IDatabaseItemDao>();
-            RuntimeSettings.InitializeLanguage(settingsService.GetLocal().LanguageCode, databaseItemDao.GetTagDictionary());
+            var gameTags = databaseItemDao.GetTagDictionary();
+            var itemLanguageCode = settingsService.GetLocal().ParsedLanguageCode;
+            if (string.IsNullOrEmpty(itemLanguageCode)) {
+                itemLanguageCode = ContainsChineseText(gameTags.Values) || HasChineseGameArchive(grimDawnDetector)
+                    ? "ZH"
+                    : settingsService.GetLocal().LanguageCode;
+                settingsService.GetLocal().ParsedLanguageCode = itemLanguageCode;
+            }
+            RuntimeSettings.InitializeLanguage(settingsService.GetLocal().LanguageCode, itemLanguageCode, gameTags);
             Timed("InitializeLanguage");
 #if DEBUG
             DumpTranslationTemplate();
@@ -205,10 +238,9 @@ namespace IAGrim
             var itemTagDao = serviceProvider.Get<IItemTagDao>();
             var databaseItemStatDao = serviceProvider.Get<IDatabaseItemStatDao>();
             var itemSkillDao = serviceProvider.Get<IItemSkillDao>();
-            ParsingService parsingService = new ParsingService(itemTagDao, string.Empty, databaseItemDao, databaseItemStatDao, itemSkillDao, settingsService.GetLocal().LanguageCode);
+            ParsingService parsingService = new ParsingService(itemTagDao, string.Empty, databaseItemDao, databaseItemStatDao, itemSkillDao, itemLanguageCode);
 
             // Before the main window exists: this is modal, and it may reload the language.
-            var grimDawnDetector = serviceProvider.Get<GrimDawnDetector>();
             var autoParsed = StartupService.PerformMissingExpansionDataCheck(
                 parsingService,
                 databaseItemDao,
@@ -217,18 +249,6 @@ namespace IAGrim
                 settingsService
             );
             Timed("PerformMissingExpansionDataCheck");
-
-            // Only if the parse above didn't already run, it parses in the current language anyway.
-            if (!autoParsed) {
-                autoParsed = StartupService.PerformLanguageChangeCheck(
-                    parsingService,
-                    databaseItemDao,
-                    serviceProvider.Get<IPlayerItemDao>(),
-                    grimDawnDetector,
-                    settingsService
-                );
-                Timed("PerformLanguageChangeCheck");
-            }
 
             StartupService.PrintStartupInfo(factory, settingsService);
 

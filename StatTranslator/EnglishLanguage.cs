@@ -9,6 +9,11 @@ namespace StatTranslator {
             foreach (var tag in existingTags.Keys)
                 SetTagIfMissing(tag, existingTags[tag]);
 
+            var itemNameOrder = existingTags.TryGetValue("tagItemNameOrder", out var parsedItemNameOrder)
+                && !string.IsNullOrWhiteSpace(parsedItemNameOrder)
+                    ? parsedItemNameOrder
+                    : ItemNameOrderFallback;
+            _itemCombinator = new ItemNameCombinator(itemNameOrder);
 
             var damageTypes = StatManager.BodyDamageTypes;
             var resistance = GetTag("Resistance");
@@ -831,7 +836,7 @@ namespace StatTranslator {
         /// </summary>
         public const string ItemNameOrderFallback = "{%_s0}{%_s1}{%_s2}{%_s3}{%_s4}";
 
-        private readonly ItemNameCombinator _itemCombinator = new ItemNameCombinator(ItemNameOrderFallback);
+        private readonly ItemNameCombinator _itemCombinator;
 
         public string TranslateName(string prefix, string quality, string style, string name, string suffix) {
             return _itemCombinator.TranslateName(prefix, quality, style, name, suffix);

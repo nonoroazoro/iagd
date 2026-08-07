@@ -296,7 +296,7 @@ namespace IAGrim.Database {
                 materia = $" [{materia}]";
             }
 
-            string localizedName = RuntimeSettings.Language?.TranslateName(prefix, quality, style, core, suffix) ?? core;
+            string localizedName = RuntimeSettings.ItemLanguage?.TranslateName(prefix, quality, style, core, suffix) ?? core;
             return localizedName + materia;
         }
 

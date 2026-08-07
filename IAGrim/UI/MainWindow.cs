@@ -632,7 +632,7 @@ namespace IAGrim.UI {
             searchPanel.Height = searchPanel.Parent!.Height;
             searchPanel.Width = searchPanel.Parent!.Width;
 
-            var languagePackPicker = new LanguagePackPicker(itemTagDao, playerItemDao, _parsingService, settingsService);
+            var languagePackPicker = new LanguagePackPicker(settingsService);
 
 
             var dm = new DarkMode(this);
@@ -707,7 +707,7 @@ namespace IAGrim.UI {
             if (settingsService.GetLocal().LanguageCode.Equals("EN", StringComparison.OrdinalIgnoreCase) && !settingsService.GetLocal().HasSuggestedLanguageChange) {
                 if (LocalizationLoader.HasSupportedTranslations(grimDawnDetector.GetGrimLocations())) {
                     Logger.Debug("A new language pack has been detected, informing end user..");
-                    new LanguagePackPicker(itemTagDao, playerItemDao, _parsingService, settingsService).Show(grimDawnDetector.GetGrimLocations());
+                    new LanguagePackPicker(settingsService).Show(grimDawnDetector.GetGrimLocations());
 
                     settingsService.GetLocal().HasSuggestedLanguageChange = true;
                 }
