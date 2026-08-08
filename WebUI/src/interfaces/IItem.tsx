@@ -26,6 +26,7 @@ export default interface IItem {
   extras?: string | undefined;
   isMonsterInfrequent?: boolean;
   isHardcore: boolean;
+  duplicateCount?: number;
   replicaStats: IReplicaRow[];
   rollStats?: IRollStat[];
 }

@@ -407,6 +407,7 @@ namespace StatTranslator {
             {"iatag_html_buddies_watermark", "Buddyitem"},
 
             {"iatag_ui_orderbylevel_tooltip", "If items should be ordered by level, instead of alphabetically."},
+            {"iatag_ui_orderbyquantity_tooltip", "Order items by canonical duplicate quantity, highest first."},
             {"iatag_ui_level_requirement_tooltip", "Level requirements for the item"},
             { "iatag_ui_explain_classiclooting_restartia", "Changing this setting requires you to restart Item Assistant" },
             {"iatag_ui_searchbox_tooltip", "The item name, partially works fine."},
@@ -557,6 +558,7 @@ namespace StatTranslator {
             {"iatag_ui_vitality", "Vitality"},
             {"iatag_ui_chaos", "Chaos"},
             {"iatag_ui_orderbylevel", "Order By Level"},
+            {"iatag_ui_orderbyquantity", "Order By Quantity"},
             {"iatag_ui_tab_settings", "Settings"},
             {"iatag_ui_settings_title", "Settings"},
             {"iatag_ui_hideskills", "Hide Skills"},

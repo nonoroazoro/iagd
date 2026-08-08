@@ -32,5 +32,9 @@ namespace IAGrim.UI.Misc.Protocol {
         /// counts (NumItemsFound is pre stack-merge, so it can exceed the number of displayed rows).
         /// </summary>
         public bool HasMore { get; set; }
+
+        public bool OrderByQuantity { get; set; }
+
+        public bool DuplicatesOnly { get; set; }
     }
 }

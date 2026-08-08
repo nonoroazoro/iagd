@@ -33,6 +33,7 @@ namespace IAGrim.UI.Controller.dto {
         public string? Extras { get; set; } // TODO: This should be a custom object
 
         public bool IsHardcore { get; set; }
+        public int DuplicateCount { get; set; }
 
         public IList<ItemStatInfo>? ReplicaStats { get; set; }
         public IList<JsonRollStat>? RollStats { get; set; }

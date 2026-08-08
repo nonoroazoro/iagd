@@ -23,6 +23,7 @@ namespace IAGrim.UI.Tabs {
         private DesiredSkills? _filterWindow;
         private TextBox _searchBox;
         private CheckBox? _orderByLevel;
+        private CheckBox? _orderByQuantity;
         private CheckBox? _duplicatesOnly;
         private ComboBox? _modFilter;
         private ComboBox? _slotFilter;
@@ -42,6 +43,7 @@ namespace IAGrim.UI.Tabs {
         private readonly int FilterPanelMinSize;
         private Microsoft.Web.WebView2.WinForms.WebView2 webView21;
         private bool _hasCheckedModFilterNotEmpty = false;
+        private bool _changingSortMode;
 
         /// <summary>
         /// ModSelectionHandler
@@ -207,12 +209,13 @@ namespace IAGrim.UI.Tabs {
                 WithSummonerSkillOnly = filters.WithSummonerSkillOnly
             };
 
-            if (item != null) {
+            var sortMode = GetSortMode();
+            if (item != null && !query.DuplicatesOnly && sortMode != ItemSortMode.Quantity) {
                 _searchController.Search(query, item);
             }
             else {
-                bool includeBuddyItems = !query.DuplicatesOnly; // Duplicate cleanup only applies to the local collection.
-                var message = _searchController.Search(query, includeBuddyItems, _orderByLevel!.Checked);
+                bool includeBuddyItems = !query.DuplicatesOnly;
+                var message = _searchController.Search(query, includeBuddyItems, sortMode);
 
                 Logger.Info("Updating UI...");
 
@@ -321,6 +324,27 @@ namespace IAGrim.UI.Tabs {
             return int.TryParse(tb.Text, out var val) ? val : 0;
         }
 
+        private ItemSortMode GetSortMode() {
+            if (_orderByQuantity!.Checked) {
+                return ItemSortMode.Quantity;
+            }
+
+            return _orderByLevel!.Checked ? ItemSortMode.Level : ItemSortMode.Name;
+        }
+
+        private void SortModeChanged(CheckBox selected, CheckBox other) {
+            if (_changingSortMode) {
+                return;
+            }
+
+            _changingSortMode = true;
+            if (selected.Checked) {
+                other.Checked = false;
+            }
+            _changingSortMode = false;
+            UpdateListViewDelayed();
+        }
+
         private void SplitSearchWindow_Load(object? sender, EventArgs e) {
             ModSelectionHandler.ConfigureModFilter();
 
@@ -348,13 +372,15 @@ namespace IAGrim.UI.Tabs {
 
             _searchBox.TextChanged += SearchBox_TextChanged;
 
-            _orderByLevel!.CheckStateChanged += delegate { UpdateListViewDelayed(); };
+            _orderByLevel!.CheckStateChanged += delegate { SortModeChanged(_orderByLevel!, _orderByQuantity!); };
+            _orderByQuantity!.CheckStateChanged += delegate { SortModeChanged(_orderByQuantity!, _orderByLevel!); };
             _duplicatesOnly!.CheckStateChanged += delegate { UpdateListViewDelayed(); };
 
             _flowPanelFilter!.SizeChanged += FlowPanelFilter_Resize;
             _mainSplitter.SizeChanged += FlowPanelFilter_Resize;
 
             LocalizationLoader.ApplyTooltipLanguage(toolTip1!, Controls, RuntimeSettings.Language!);
+            FlowPanelFilter_Resize(this, EventArgs.Empty);
         }
 
         private void SearchBox_TextChanged(object? sender, EventArgs e) {
@@ -407,6 +433,7 @@ namespace IAGrim.UI.Tabs {
             _flowPanelFilter = new FlowLayoutPanel();
             _searchBox = new TextBox();
             _orderByLevel = new CheckBox();
+            _orderByQuantity = new CheckBox();
             _duplicatesOnly = new CheckBox();
             _itemQuality = new ComboBox();
             _slotFilter = new ComboBox();
@@ -478,6 +505,7 @@ namespace IAGrim.UI.Tabs {
             _flowPanelFilter.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             _flowPanelFilter.Controls.Add(_searchBox);
             _flowPanelFilter.Controls.Add(_orderByLevel);
+            _flowPanelFilter.Controls.Add(_orderByQuantity);
             _flowPanelFilter.Controls.Add(_itemQuality);
             _flowPanelFilter.Controls.Add(_slotFilter);
             _flowPanelFilter.Controls.Add(_modFilter);
@@ -520,17 +548,31 @@ namespace IAGrim.UI.Tabs {
             _orderByLevel.Text = "Order By Level";
             toolTip1.SetToolTip(_orderByLevel, "If items should be ordered by level, instead of alphabetically.");
             _orderByLevel.UseVisualStyleBackColor = true;
+            //
+            // _orderByQuantity
+            //
+            _orderByQuantity.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _orderByQuantity.AutoSize = true;
+            _orderByQuantity.Location = new Point(247, 22);
+            _orderByQuantity.Margin = new Padding(4, 22, 4, 3);
+            _orderByQuantity.Name = "_orderByQuantity";
+            _orderByQuantity.Size = new Size(116, 19);
+            _orderByQuantity.TabIndex = 43;
+            _orderByQuantity.Tag = "iatag_ui_orderbyquantity";
+            _orderByQuantity.Text = "Order By Quantity";
+            toolTip1.SetToolTip(_orderByQuantity, "Order items by canonical duplicate quantity, highest first.");
+            _orderByQuantity.UseVisualStyleBackColor = true;
             // 
             // _itemQuality
             // 
             _itemQuality.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _itemQuality.DropDownStyle = ComboBoxStyle.DropDownList;
             _itemQuality.FormattingEnabled = true;
-            _itemQuality.Location = new Point(247, 20);
+            _itemQuality.Location = new Point(371, 20);
             _itemQuality.Margin = new Padding(4, 20, 4, 3);
             _itemQuality.Name = "_itemQuality";
             _itemQuality.Size = new Size(104, 23);
-            _itemQuality.TabIndex = 43;
+            _itemQuality.TabIndex = 44;
             _itemQuality.Tag = "iatag_ui_itemquality_tooltip";
             toolTip1.SetToolTip(_itemQuality, "The minimum item quality");
             // 
@@ -539,11 +581,11 @@ namespace IAGrim.UI.Tabs {
             _slotFilter.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _slotFilter.DropDownStyle = ComboBoxStyle.DropDownList;
             _slotFilter.FormattingEnabled = true;
-            _slotFilter.Location = new Point(359, 20);
+            _slotFilter.Location = new Point(483, 20);
             _slotFilter.Margin = new Padding(4, 20, 4, 3);
             _slotFilter.Name = "_slotFilter";
             _slotFilter.Size = new Size(139, 23);
-            _slotFilter.TabIndex = 44;
+            _slotFilter.TabIndex = 45;
             _slotFilter.Tag = "iatag_ui_slotfilter_tooltip";
             toolTip1.SetToolTip(_slotFilter, "Slot/Type");
             // 
@@ -552,11 +594,11 @@ namespace IAGrim.UI.Tabs {
             _modFilter.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _modFilter.DropDownStyle = ComboBoxStyle.DropDownList;
             _modFilter.FormattingEnabled = true;
-            _modFilter.Location = new Point(506, 20);
+            _modFilter.Location = new Point(630, 20);
             _modFilter.Margin = new Padding(4, 20, 4, 3);
             _modFilter.Name = "_modFilter";
             _modFilter.Size = new Size(118, 23);
-            _modFilter.TabIndex = 45;
+            _modFilter.TabIndex = 46;
             _modFilter.Tag = "iatag_ui_modfilter_tooltip";
             toolTip1.SetToolTip(_modFilter, "Mod / Hardcore / Vanilla");
             // 
@@ -564,7 +606,7 @@ namespace IAGrim.UI.Tabs {
             // 
             _levelRequirementGroup.Controls.Add(_minLevel);
             _levelRequirementGroup.Controls.Add(_maxLevel);
-            _levelRequirementGroup.Location = new Point(632, 3);
+            _levelRequirementGroup.Location = new Point(756, 3);
             _levelRequirementGroup.Margin = new Padding(4, 3, 4, 3);
             _levelRequirementGroup.Name = "_levelRequirementGroup";
             _levelRequirementGroup.Padding = new Padding(4, 3, 4, 3);
@@ -582,7 +624,7 @@ namespace IAGrim.UI.Tabs {
             _minLevel.MaxLength = 3;
             _minLevel.Name = "_minLevel";
             _minLevel.Size = new Size(34, 23);
-            _minLevel.TabIndex = 46;
+            _minLevel.TabIndex = 47;
             _minLevel.Tag = "iatag_ui_minlevel_tooltip";
             _minLevel.Text = "0";
             _minLevel.TextAlign = HorizontalAlignment.Center;
@@ -596,7 +638,7 @@ namespace IAGrim.UI.Tabs {
             _maxLevel.MaxLength = 3;
             _maxLevel.Name = "_maxLevel";
             _maxLevel.Size = new Size(34, 23);
-            _maxLevel.TabIndex = 47;
+            _maxLevel.TabIndex = 48;
             _maxLevel.Tag = "iatag_ui_maxlevel_tooltip";
             _maxLevel.Text = "110";
             _maxLevel.TextAlign = HorizontalAlignment.Center;
@@ -607,11 +649,11 @@ namespace IAGrim.UI.Tabs {
             //
             _duplicatesOnly.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _duplicatesOnly.AutoSize = true;
-            _duplicatesOnly.Location = new Point(731, 22);
+            _duplicatesOnly.Location = new Point(855, 22);
             _duplicatesOnly.Margin = new Padding(4, 22, 4, 3);
             _duplicatesOnly.Name = "_duplicatesOnly";
             _duplicatesOnly.Size = new Size(111, 19);
-            _duplicatesOnly.TabIndex = 51;
+            _duplicatesOnly.TabIndex = 52;
             _duplicatesOnly.Tag = "iatag_ui_duplicatesonly";
             _duplicatesOnly.Text = "Duplicates Only";
             toolTip1.SetToolTip(_duplicatesOnly, "Show only items owned in quantities of two or more.");
@@ -649,7 +691,15 @@ namespace IAGrim.UI.Tabs {
         }
 
         private void FlowPanelFilter_Resize(object? sender, EventArgs e) {
-            _searchBox.Width = Math.Max(300, _flowPanelFilter!.Width - 500);
+            var reservedWidth = _flowPanelFilter!.Controls
+                .Cast<Control>()
+                .Where(control => control != _searchBox && control.Visible)
+                .Sum(control => control.Width + control.Margin.Horizontal);
+            var availableWidth = _flowPanelFilter.ClientSize.Width
+                - _flowPanelFilter.Padding.Horizontal
+                - _searchBox.Margin.Horizontal
+                - reservedWidth;
+            _searchBox.Width = Math.Clamp(availableWidth, 300, _searchBox.MaximumSize.Width);
             _searchBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         }
     }

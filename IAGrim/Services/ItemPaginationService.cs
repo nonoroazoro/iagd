@@ -2,11 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using IAGrim.Database;
-using IAGrim.UI.Controller.dto;
-using NHibernate.Util;
+using IAGrim.Database.Dto;
 
 namespace IAGrim.Services {
     class ItemPaginationService {
@@ -14,7 +11,7 @@ namespace IAGrim.Services {
         private readonly Comparison<List<PlayerHeldItem>> _comparer;
 
         private int _skip;
-        private bool _orderByLevel;
+        private ItemSortMode _sortMode;
         private List<List<PlayerHeldItem>> _items = new List<List<PlayerHeldItem>>();
 
         /// <summary>
@@ -46,8 +43,7 @@ namespace IAGrim.Services {
 
             this._comparer = (a, b) => a?[0].Name?.CompareTo(b?[0]?.Name) ?? 0;
 
-            // A bit retarded, but due to crappy JS code, we need there to be 'whole rows' of items on high resolutions.
-            // TODO: improve the JS to avoid this restriction.
+            // Keep batches aligned to complete four-column rows on high resolutions.
             System.Diagnostics.Debug.Assert(limit % 4 == 0);
         }
 
@@ -65,33 +61,45 @@ namespace IAGrim.Services {
             return 0;
         }
 
-        private bool Compare(PlayerHeldItem a, PlayerHeldItem b) {
-            if (a is PlayerItem pi1) {
-                if (b is PlayerItem pi2) {
-                    return pi1.BaseRecord == pi2.BaseRecord
-                           && pi1.PrefixRecord == pi2.PrefixRecord
-                           && pi1.Seed == pi2.Seed
-                           && pi1.SuffixRecord == pi2.SuffixRecord;
+        private int CompareToQuantity(List<PlayerHeldItem> itemA, List<PlayerHeldItem> itemB) {
+            var playerA = itemA[0] as PlayerItem;
+            var playerB = itemB[0] as PlayerItem;
+            if (playerA == null || playerB == null) {
+                if (playerA != null) {
+                    return -1;
                 }
-            } else if (a is BuddyItem bi1) {
-                if (b is BuddyItem bi2) {
-                    return bi1.BaseRecord == bi2.BaseRecord
-                           && bi1.PrefixRecord == bi2.PrefixRecord
-                           && bi1.Seed == bi2.Seed
-                           && bi1.SuffixRecord == bi2.SuffixRecord;
 
+                if (playerB != null) {
+                    return 1;
                 }
+
+                return _comparer(itemA, itemB);
             }
 
-            return false;
+            var countA = playerA.DuplicateCount;
+            var countB = playerB.DuplicateCount;
+            var order = countB.CompareTo(countA);
+            if (order != 0) {
+                return order;
+            }
+
+            order = string.Compare(playerA.DuplicateIdentity, playerB.DuplicateIdentity, StringComparison.Ordinal);
+            return order != 0 ? order : _comparer(itemA, itemB);
         }
 
+        private Comparison<List<PlayerHeldItem>> GetComparer() {
+            return _sortMode switch {
+                ItemSortMode.Level => CompareToMinimumLevel,
+                ItemSortMode.Quantity => CompareToQuantity,
+                _ => _comparer
+            };
+        }
 
-        public bool Update(List<List<PlayerHeldItem>> items, bool orderByLevel, int numTotalItems) {
+        public bool Update(List<List<PlayerHeldItem>> items, ItemSortMode sortMode, int numTotalItems) {
             this._skip = 0;
-            this._orderByLevel = orderByLevel;
+            this._sortMode = sortMode;
             this._items = items;
-            _items.Sort(orderByLevel ? CompareToMinimumLevel : _comparer);
+            _items.Sort(GetComparer());
             this.NumTotalItems = numTotalItems;
             return true;
         }
@@ -105,7 +113,7 @@ namespace IAGrim.Services {
         public void Append(List<List<PlayerHeldItem>> items) {
             this._items.AddRange(items);
             var tailStart = Math.Min(_skip, _items.Count);
-            _items.Sort(tailStart, _items.Count - tailStart, Comparer<List<PlayerHeldItem>>.Create(_orderByLevel ? CompareToMinimumLevel : _comparer));
+            _items.Sort(tailStart, _items.Count - tailStart, Comparer<List<PlayerHeldItem>>.Create(GetComparer()));
         }
 
         public List<List<PlayerHeldItem>> Fetch() {

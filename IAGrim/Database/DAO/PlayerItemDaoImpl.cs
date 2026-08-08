@@ -843,13 +843,14 @@ namespace IAGrim.Database {
         /// </summary>
         public const int UnknownTotalCount = -1;
 
-        public List<PlayerItem> SearchForItems(ItemSearchRequest query, int skip, bool orderByLevel, bool computeCount, out int totalCount, out bool wasTruncated, PlayerItem? item = null) {
+        public List<PlayerItem> SearchForItems(ItemSearchRequest query, int skip, ItemSortMode sortMode, bool computeCount, out int totalCount, out bool wasTruncated, PlayerItem? item = null) {
             Logger.Debug($"Searching for items with query {query} (skip {skip})");
             wasTruncated = false;
             totalCount = 0;
             var queryFragments = new List<string>();
             var queryParams = new Dictionary<string, object>();
             var statFilterListParams = new Dictionary<string, string[]>();
+            var useCanonicalGrouping = query.DuplicatesOnly || sortMode == ItemSortMode.Quantity;
 
             if (item != null) {
                 queryFragments.Add("(PI.id = :playerItemId)");
@@ -888,25 +889,7 @@ namespace IAGrim.Database {
             }
 
             if (query.DuplicatesOnly) {
-                var duplicateIdentity = DuplicateIdentitySql("PI");
-                var ownedDuplicateIdentity = DuplicateIdentitySql("Owned");
-                var hcSc = query.IsHardcore ? "Owned.IsHardcore" : "NOT Owned.IsHardcore";
-                if (string.IsNullOrEmpty(query.Mod)) {
-                    queryFragments.Add($@"{duplicateIdentity} IN (
-                    SELECT {ownedDuplicateIdentity} FROM PlayerItem Owned
-                    WHERE (Owned.Mod IS NULL OR Owned.Mod = '')
-                    AND {hcSc}
-                    GROUP BY {ownedDuplicateIdentity}
-                    HAVING COUNT(*) >= 2)");
-                }
-                else {
-                    queryFragments.Add($@"{duplicateIdentity} IN (
-                    SELECT {ownedDuplicateIdentity} FROM PlayerItem Owned
-                    WHERE LOWER(Owned.Mod) = LOWER( :mod )
-                    AND {hcSc}
-                    GROUP BY {ownedDuplicateIdentity}
-                    HAVING COUNT(*) >= 2)");
-                }
+                queryFragments.Add("DC.DuplicateCount >= 2");
             }
 
             // Add the MINIMUM level requirement (if any)
@@ -943,7 +926,34 @@ namespace IAGrim.Database {
                     and stat.stat = 'spawnObjects')");
             }
 
-            var duplicateIdentityColumn = query.DuplicatesOnly ? DuplicateIdentitySql("PI") : "NULL";
+            var canonicalCteSql = string.Empty;
+            var canonicalJoinSql = string.Empty;
+            if (useCanonicalGrouping) {
+                var ownedModFilter = string.IsNullOrEmpty(query.Mod)
+                    ? "(Owned.Mod IS NULL OR Owned.Mod = '')"
+                    : "LOWER(Owned.Mod) = LOWER(:mod)";
+                var ownedHardcoreFilter = query.IsHardcore ? "Owned.IsHardcore" : "NOT Owned.IsHardcore";
+                canonicalCteSql = $@"WITH BaseCounts AS (
+                    SELECT Owned.BaseRecord, COUNT(*) AS BaseCount
+                    FROM PlayerItem Owned
+                    WHERE {ownedModFilter} AND {ownedHardcoreFilter}
+                    GROUP BY Owned.BaseRecord
+                ), CanonicalBaseCounts AS (
+                    SELECT BaseCounts.BaseRecord,
+                        {DuplicateIdentitySql("BaseCounts")} AS DuplicateIdentity,
+                        BaseCounts.BaseCount
+                    FROM BaseCounts
+                ), DuplicateCounts AS (
+                    SELECT DuplicateIdentity, SUM(BaseCount) AS DuplicateCount
+                    FROM CanonicalBaseCounts
+                    GROUP BY DuplicateIdentity
+                ) ";
+                canonicalJoinSql = @"LEFT JOIN CanonicalBaseCounts CBC ON CBC.BaseRecord = PI.BaseRecord
+                    LEFT JOIN DuplicateCounts DC ON DC.DuplicateIdentity = CBC.DuplicateIdentity";
+            }
+
+            var duplicateIdentityColumn = useCanonicalGrouping ? "CBC.DuplicateIdentity" : "NULL";
+            var duplicateCountColumn = useCanonicalGrouping ? "COALESCE(DC.DuplicateCount, 1)" : "0";
             var selectColumns = $@"select PI.name as Name,
                 PI.StackCount,
                 PI.rarity as Rarity,
@@ -966,13 +976,15 @@ namespace IAGrim.Database {
                 '' AS PetRecord,
                 '[]' AS ReplicaInfo,
                 PI.Seed as Seed,
-                {duplicateIdentityColumn} AS DuplicateIdentity ";
+                {duplicateIdentityColumn} AS DuplicateIdentity,
+                {duplicateCountColumn} AS DuplicateCount ";
 
             // The FROM/WHERE body is shared verbatim between the row query and the COUNT(*) query
             // (see below) so the total count can never drift from what the paged query actually returns.
             var sql = new List<string> {
                 @"FROM PlayerItem PI
                 LEFT OUTER JOIN ReplicaItem2 R ON PI.ID = R.playeritemid
+                " + canonicalJoinSql + @"
                 WHERE " + string.Join(" AND ", queryFragments)
             };
 
@@ -1022,21 +1034,22 @@ namespace IAGrim.Database {
             // Shared FROM/WHERE body (before ordering/paging), reused by both the row query and the count query.
             var bodySql = string.Join(" ", sql);
 
-            // Deterministic ordering so LIMIT/OFFSET slices are stable across pages (no row skipped or
-            // duplicated between batches). Matches PlayerItem.CompareTo (Name, then Id) so the pages arrive
-            // pre-sorted in the order the UI displays; PI.Id is the final tiebreaker for stability.
-            var orderBy = orderByLevel
-                ? " ORDER BY PI.levelrequirement, PI.name, PI.Id "
-                : " ORDER BY PI.name, PI.Id ";
+            // Deterministic ordering keeps LIMIT/OFFSET slices stable across pages. Quantity sorting keeps
+            // every canonical identity contiguous so duplicate groups cannot be split by affix names.
+            var orderBy = sortMode switch {
+                ItemSortMode.Level => " ORDER BY PI.levelrequirement, PI.name, PI.Id ",
+                ItemSortMode.Quantity => " ORDER BY DC.DuplicateCount DESC, CBC.DuplicateIdentity, PI.name, PI.Id ",
+                _ => " ORDER BY PI.name, PI.Id "
+            };
 
-            // Only cap/paginate the general "browse" search. The single-item lookup (item != null) is
-            // already scoped to one specific id and never needs a limit.
+            // Canonical cleanup modes must keep complete groups in memory. Row-based LIMIT/OFFSET can split
+            // one identity across DB pages, which would create duplicate UI groups and stale transfer cursors.
             string combinedSql;
-            if (item == null) {
-                combinedSql = selectColumns + bodySql + orderBy + $" LIMIT {MaxSearchResults + 1} OFFSET {skip}";
+            if (item == null && !useCanonicalGrouping) {
+                combinedSql = canonicalCteSql + selectColumns + bodySql + orderBy + $" LIMIT {MaxSearchResults + 1} OFFSET {skip}";
             }
             else {
-                combinedSql = selectColumns + bodySql;
+                combinedSql = canonicalCteSql + selectColumns + bodySql + orderBy;
             }
 
             void BindParams(ISQLQuery target) {
@@ -1065,7 +1078,7 @@ namespace IAGrim.Database {
 
                 var items = q.List<object>().Select(ToPlayerItem).ToList();
 
-                if (item == null && items.Count > MaxSearchResults) {
+                if (item == null && !useCanonicalGrouping && items.Count > MaxSearchResults) {
                     items = items.Take(MaxSearchResults).ToList();
                     wasTruncated = true;
                 }
@@ -1073,16 +1086,15 @@ namespace IAGrim.Database {
                 if (item != null) {
                     totalCount = items.Count;
                 }
-                else if (!wasTruncated) {
-                    // The result fit in a single page (<= MaxSearchResults), so the row count IS the total,
-                    // regardless of computeCount. No separate COUNT pass needed - this is the common case and
-                    // avoids a second full scan of the match set on every search.
+                else if (skip == 0 && !wasTruncated) {
+                    // The first query returned the complete result, so its row count is exact. Canonical cleanup
+                    // modes intentionally read all matching rows to keep each identity in one UI group.
                     totalCount = items.Count;
                 }
                 else if (computeCount) {
                     // Capped result and the caller wants the real total (e.g. the user has paginated past the
                     // first page). This is the expensive path: a full-scan COUNT re-running the whole WHERE body.
-                    ISQLQuery countQuery = session.CreateSQLQuery("SELECT COUNT(*) " + bodySql);
+                    ISQLQuery countQuery = session.CreateSQLQuery(canonicalCteSql + "SELECT COUNT(*) " + bodySql);
                     BindParams(countQuery);
                     totalCount = System.Convert.ToInt32(countQuery.UniqueResult());
                 }
@@ -1212,6 +1224,7 @@ namespace IAGrim.Database {
             string replicaInfo = Convert<string>(arr[idx++]);
             long seed = Convert<long>(arr[idx++]);
             string? duplicateIdentity = idx < arr.Length ? Convert<string>(arr[idx++])?.Trim() : null;
+            int duplicateCount = idx < arr.Length ? (int)Convert(arr[idx++]) : 0;
 
 
             return new PlayerItem {
@@ -1237,7 +1250,8 @@ namespace IAGrim.Database {
                 AffixRerollsUsed = AffixRerollsUsed,
                 ReplicaInfo = replicaInfo,
                 Seed = seed,
-                DuplicateIdentity = duplicateIdentity
+                DuplicateIdentity = duplicateIdentity,
+                DuplicateCount = duplicateCount
             };
         }
 

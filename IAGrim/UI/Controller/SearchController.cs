@@ -31,9 +31,9 @@ namespace IAGrim.UI.Controller {
         // view is filtered by the same query as the item search, but is only fetched when that tab is open.
         private ItemSearchRequest? _lastQuery;
 
-        // Cross-batch pagination state for the current query. The DB search is capped at MaxSearchResults
-        // rows per call; once the user scrolls past the buffered page we fetch the next DB page at _dbSkip.
-        private bool _lastOrderByLevel;
+        // Cross-batch pagination state for general browsing. Canonical cleanup modes load complete groups
+        // in one query; other searches fetch the next capped DB page at _dbSkip when the buffer is drained.
+        private ItemSortMode _lastSortMode;
         private int _dbSkip;                 // Offset of the next (not-yet-fetched) DB page of player items.
         private int _playerTotalCount;       // Exact total matching player items once known; while deferred, the floor (MaxSearchResults).
         private bool _playerTotalKnown;      // False while the exact total is deferred (result was capped and COUNT skipped).
@@ -43,7 +43,9 @@ namespace IAGrim.UI.Controller {
         // Are there more player items to fetch from the DB? If we know the exact total, compare against it;
         // otherwise fall back to "the last DB page came back full" (short-page detection), which lets
         // pagination work without paying for an up-front COUNT on the first page.
-        private bool MorePlayerPages => _playerTotalKnown ? _dbSkip < _playerTotalCount : _lastDbPageFull;
+        private bool UsesCanonicalGrouping => _lastQuery?.DuplicatesOnly == true || _lastSortMode == ItemSortMode.Quantity;
+        private bool MorePlayerPages => !UsesCanonicalGrouping
+            && (_playerTotalKnown ? _dbSkip < _playerTotalCount : _lastDbPageFull);
 
         // Whether the frontend should keep requesting more items: either the buffer still holds unserved
         // rows, or there are further DB pages to fetch.
@@ -117,7 +119,7 @@ namespace IAGrim.UI.Controller {
                 // and only for the minority of searches the user actually paginates through.
                 bool computeCount = !_playerTotalKnown;
 
-                var more = _playerItemDao.SearchForItems(_lastQuery, _dbSkip, _lastOrderByLevel, computeCount, out int total, out bool moreTruncated);
+                var more = _playerItemDao.SearchForItems(_lastQuery, _dbSkip, _lastSortMode, computeCount, out int total, out bool moreTruncated);
                 _dbSkip += PlayerItemDaoImpl.MaxSearchResults;
                 _lastDbPageFull = moreTruncated;
 
@@ -129,7 +131,7 @@ namespace IAGrim.UI.Controller {
 
                 _itemPaginationService.Append(ItemOperationsUtility.MergeStackSize(
                     more,
-                    _lastQuery.DuplicatesOnly));
+                    _lastQuery.DuplicatesOnly || _lastSortMode == ItemSortMode.Quantity));
             }
 
             var items = _itemPaginationService.Fetch();
@@ -150,7 +152,13 @@ namespace IAGrim.UI.Controller {
                 browser.AddItems(convertedItems, HasMore, updatedNumItemsFound);
             }
             else {
-                browser.SetItems(convertedItems, _itemPaginationService.NumTotalItems, HasMore, !_playerTotalKnown);
+                browser.SetItems(
+                    convertedItems,
+                    _itemPaginationService.NumTotalItems,
+                    HasMore,
+                    numItemsApproximate: !_playerTotalKnown,
+                    orderByQuantity: _lastSortMode == ItemSortMode.Quantity,
+                    duplicatesOnly: _lastQuery?.DuplicatesOnly ?? false);
             }
 
             return true;
@@ -163,7 +171,7 @@ namespace IAGrim.UI.Controller {
             }
             Logger.Info("Checking if newly looted item matches filter..");
 
-            var items = _playerItemDao.SearchForItems(query, 0, false, false, out _, out _, item);
+            var items = _playerItemDao.SearchForItems(query, 0, ItemSortMode.Name, false, out _, out _, item);
             _playerItemDao.PopulateReplicaAndPetInfo(items);
             var merged = ItemOperationsUtility.MergeStackSize(items, query.DuplicatesOnly);
             _itemStatService.ApplyStats(merged.SelectMany(m => m));
@@ -171,7 +179,7 @@ namespace IAGrim.UI.Controller {
             browser.AddItems(convertedItems, HasMore);
         }
 
-        public string Search(ItemSearchRequest query, bool includeBuddyItems, bool orderByLevel) {
+        public string Search(ItemSearchRequest query, bool includeBuddyItems, ItemSortMode sortMode) {
             var browser = Browser;
             if (browser == null || !browser.IsReady()) {
                 return string.Empty;
@@ -191,14 +199,14 @@ namespace IAGrim.UI.Controller {
                 var swTotal = System.Diagnostics.Stopwatch.StartNew();
 
                 // Reset cross-batch pagination state for this new query and fetch the first DB page.
-                _lastOrderByLevel = orderByLevel;
+                _lastSortMode = sortMode;
                 _dbSkip = PlayerItemDaoImpl.MaxSearchResults; // first page is offset 0; next page starts here
                 _buddyCount = 0;
 
                 // Defer the exact total on the first page (computeCount: false). If the result is capped we show
                 // "1000+" and only pay for the (full-scan) COUNT if/when the user actually paginates past it.
                 var items = new List<PlayerHeldItem>();
-                items.AddRange(_playerItemDao.SearchForItems(query, 0, orderByLevel, false, out int playerTotal, out bool wasTruncated));
+                items.AddRange(_playerItemDao.SearchForItems(query, 0, sortMode, false, out int playerTotal, out bool wasTruncated));
 
                 _playerTotalKnown = !wasTruncated;
                 _lastDbPageFull = wasTruncated;
@@ -216,11 +224,17 @@ namespace IAGrim.UI.Controller {
                         : string.Empty;
                 }
 
-                var merged = ItemOperationsUtility.MergeStackSize(items, query.DuplicatesOnly);
+                var merged = ItemOperationsUtility.MergeStackSize(items,
+                    query.DuplicatesOnly || sortMode == ItemSortMode.Quantity);
 
-                if (_itemPaginationService.Update(merged, orderByLevel, _playerTotalCount + _buddyCount)) {
+                if (_itemPaginationService.Update(merged, sortMode, _playerTotalCount + _buddyCount)) {
                     if (!ApplyItems(false)) {
-                        browser.SetItems(new List<List<JsonItem>>(0), 0, false);
+                        browser.SetItems(
+                            new List<List<JsonItem>>(0),
+                            0,
+                            false,
+                            orderByQuantity: sortMode == ItemSortMode.Quantity,
+                            duplicatesOnly: query.DuplicatesOnly);
                     }
 
                     // Collection data is no longer fetched here on every search. The frontend requests it

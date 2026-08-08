@@ -17,22 +17,24 @@ namespace IAGrim.Database.DAO.Util {
             bool groupByDuplicateIdentity = false) {
             Dictionary<string, List<PlayerHeldItem>> map = new Dictionary<string, List<PlayerHeldItem>>();
             foreach (var item in items) {
-                var mergeIdentifier = groupByDuplicateIdentity && item is PlayerItem duplicateItem
-                    ? duplicateItem.DuplicateIdentity ?? duplicateItem.BaseRecord ?? string.Empty
-                    : item.BaseRecord ?? string.Empty;
-                if (!groupByDuplicateIdentity && item is PlayerItem pi) {
-                    mergeIdentifier += (pi.PrefixRecord ?? string.Empty) + (pi.SuffixRecord ?? string.Empty);
+                string mergeIdentifier;
+                if (item is PlayerItem pi) {
+                    mergeIdentifier = groupByDuplicateIdentity
+                        ? pi.DuplicateIdentity ?? pi.BaseRecord ?? string.Empty
+                        : (pi.BaseRecord ?? string.Empty) + (pi.PrefixRecord ?? string.Empty) + (pi.SuffixRecord ?? string.Empty);
                 }
-                else if (!groupByDuplicateIdentity && item is BuddyItem bi) {
-                    mergeIdentifier += (bi.PrefixRecord ?? string.Empty) + (bi.SuffixRecord ?? string.Empty);
-                }
-
-                var key = mergeIdentifier;
-                if (map.ContainsKey(key)) {
-                    map[key].Add(item);
+                else if (item is BuddyItem bi) {
+                    mergeIdentifier = (bi.BaseRecord ?? string.Empty) + (bi.PrefixRecord ?? string.Empty) + (bi.SuffixRecord ?? string.Empty);
                 }
                 else {
-                    map[key] = new List<PlayerHeldItem>() { item };
+                    mergeIdentifier = item.BaseRecord ?? string.Empty;
+                }
+
+                if (map.TryGetValue(mergeIdentifier, out var group)) {
+                    group.Add(item);
+                }
+                else {
+                    map[mergeIdentifier] = new List<PlayerHeldItem> { item };
                 }
             }
 

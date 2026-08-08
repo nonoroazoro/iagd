@@ -45,6 +45,8 @@ interface ApplicationState {
   easterEggMode: boolean;
   gdSeasonError: boolean;
   showNumericFilterBanner: boolean;
+  orderByQuantity: boolean;
+  duplicatesOnly: boolean;
 }
 
 interface IOMessage {
@@ -97,6 +99,8 @@ interface IOMessageSetItems {
   numItemsFound: number;
   numItemsApproximate: boolean;
   hasMore: boolean;
+  orderByQuantity: boolean;
+  duplicatesOnly: boolean;
 }
 
 
@@ -127,6 +131,8 @@ class App extends PureComponent<object, object> {
     easterEggMode: false,
     gdSeasonError: false,
     showNumericFilterBanner: false,
+    orderByQuantity: false,
+    duplicatesOnly: false,
   } as ApplicationState;
 
   componentDidMount() {
@@ -293,6 +299,8 @@ class App extends PureComponent<object, object> {
               numItems: data.numItemsFound || 0,
               numItemsApproximate: data.numItemsApproximate,
               hasMore: data.hasMore,
+              orderByQuantity: data.orderByQuantity,
+              duplicatesOnly: data.duplicatesOnly,
               isFirstRun: isFirstRun,
               itemLookupMap: lookupMap,
               // The warning belongs to a single search. C# sends SetItems first and only then decides
@@ -466,25 +474,43 @@ class App extends PureComponent<object, object> {
       return;
     }
 
+    const originalItems = this.state.items[itemIdx];
+    const originalPlayerCount = originalItems.filter(current => current.uniqueIdentifier.startsWith('PI/')).length;
     let itemArray;
     if (transferAll) {
       // Filter out all playeritems
-      itemArray = [...this.state.items[itemIdx]].filter(m => m.type !== 2);
+      itemArray = [...originalItems].filter(current => !current.uniqueIdentifier.startsWith('PI/'));
     } else {
       // Filter out specific item
-      itemArray = [...this.state.items[itemIdx]].filter(m => m.uniqueIdentifier !== item.uniqueIdentifier);
+      itemArray = [...originalItems].filter(current => current.uniqueIdentifier !== item.uniqueIdentifier);
     }
 
+    let duplicateCount = originalItems[0].duplicateCount ?? originalPlayerCount;
+    if ((this.state.orderByQuantity || this.state.duplicatesOnly) && !transferAll) {
+      duplicateCount = Math.max(0, duplicateCount - 1);
+      itemArray = itemArray.map(current => ({...current, duplicateCount}));
+    }
 
-    if (itemArray.length === 0) {
-      const stateItems = [...this.state.items];
+    const stateItems = [...this.state.items];
+    if (itemArray.length === 0 || (this.state.duplicatesOnly && duplicateCount < 2)) {
       stateItems.splice(itemIdx, 1);
-      this.setState({items: stateItems});
+      itemArray = [];
     } else {
-      const stateItems = [...this.state.items];
       stateItems[itemIdx] = itemArray;
-      this.setState({items: stateItems});
     }
+
+    if (this.state.orderByQuantity) {
+      stateItems.sort((left, right) =>
+        (right[0].duplicateCount ?? right.length) - (left[0].duplicateCount ?? left.length));
+    }
+
+    this.setState({
+      items: stateItems,
+      numItems: Math.max(0, this.state.numItems
+        - originalPlayerCount
+        + itemArray.filter(current => current.uniqueIdentifier.startsWith('PI/')).length),
+      itemLookupMap: this.calculateItemLocations(stateItems, 0, new Map<number, number>()),
+    });
   }
 
   requestMoreItems() {

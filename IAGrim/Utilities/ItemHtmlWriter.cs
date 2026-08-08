@@ -284,6 +284,7 @@ namespace IAGrim.Utilities {
                 Extras = extras,
                 IsMonsterInfrequent = item.ModifiedSkills.Any(s => s.IsMonsterInfrequent),
                 IsHardcore = isHardcore,
+                DuplicateCount = item is PlayerItem playerItem ? playerItem.DuplicateCount : 0,
                 ReplicaStats = replicaStats,
                 RollStats = rollStats,
             };

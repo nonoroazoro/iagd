@@ -144,7 +144,7 @@ namespace IAGrim.UI.Misc.CEF {
         /// </summary>
         /// <param name="items">The current batch</param>
         /// <param name="numItemsFound">The number of items found, total (eg 3000 found, but batch has 64)</param>
-        public void SetItems(List<List<JsonItem>> items, int numItemsFound, bool hasMore, bool numItemsApproximate = false) {
+        public void SetItems(List<List<JsonItem>> items, int numItemsFound, bool hasMore, bool numItemsApproximate = false, bool orderByQuantity = false, bool duplicatesOnly = false) {
             SendMessage(new IOMessage {
                 Type = IOMessageType.SetItems,
                 Data = new IOMessageSetItems {
@@ -153,6 +153,8 @@ namespace IAGrim.UI.Misc.CEF {
                     Items = items,
                     ReplaceExistingItems = true,
                     HasMore = hasMore,
+                    OrderByQuantity = orderByQuantity,
+                    DuplicatesOnly = duplicatesOnly,
                 }
             });
         }
