@@ -5,12 +5,14 @@
 - Windows
 - PowerShell
 - Node.js and npm available through `PATH`
-- Visual Studio MSBuild available through `PATH`
+- Visual Studio MSBuild available through `PATH` or discoverable through `vswhere`
 - Visual C++ build tools and a Windows 10 SDK
 - .NET SDK 10
 - Boost 1.78.0 headers and x64 compiled libraries
 
 The package script uses `dotnet` from `PATH` when it is .NET SDK 10 or newer. It falls back to `.tools/dotnet/dotnet.exe` only when the PATH SDK is too old.
+
+The package script uses `MSBuild` from `PATH` when available. Otherwise, it uses the Visual Studio Installer's `vswhere` tool to locate MSBuild.
 
 For Boost, either place one `boost_*` directory under `.tools`, or set `BOOST` to the Boost root. If the Boost root contains more than one `lib64-msvc-*` directory, set `BOOST_LIBRARYDIR` to the directory matching the active compiler.
 

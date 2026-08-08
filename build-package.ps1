@@ -22,6 +22,38 @@ function Resolve-RequiredCommand {
     return $command.Source
 }
 
+function Resolve-MSBuild {
+    $command = Get-Command 'msbuild' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -ne $command) {
+        return $command.Source
+    }
+
+    $vsWhereCommand = Get-Command 'vswhere' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    $vsWherePath = if ($null -ne $vsWhereCommand) {
+        $vsWhereCommand.Source
+    }
+    else {
+        $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+        Join-Path $programFilesX86 'Microsoft Visual Studio\Installer\vswhere.exe'
+    }
+
+    if (Test-Path -LiteralPath $vsWherePath -PathType Leaf) {
+        $candidates = @(& $vsWherePath -latest -products * -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe')
+        if ($LASTEXITCODE -eq 0) {
+            $candidate = $candidates |
+                Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+                Select-Object -First 1
+            if ($null -ne $candidate) {
+                return $candidate
+            }
+        }
+    }
+
+    throw 'Visual Studio MSBuild was not found in PATH or through vswhere.'
+}
+
 $repositoryRoot = $PSScriptRoot
 $solutionPath = Join-Path $repositoryRoot 'IAGrim-core.sln'
 $hookSolutionPath = Join-Path $repositoryRoot 'HookDll\Hook\GDIAHook.sln'
@@ -62,7 +94,7 @@ $pathBoost = $null
 $boostLibraryPath = $null
 $windowsSdkVersion = $null
 if (-not $SkipHookBuild) {
-    $pathMsBuild = Resolve-RequiredCommand -Name 'msbuild' -Description 'Visual Studio MSBuild'
+    $pathMsBuild = Resolve-MSBuild
     $pathBoost = [Environment]::GetEnvironmentVariable('BOOST', 'Process')
     if ([string]::IsNullOrWhiteSpace($pathBoost)) {
         $boostCandidates = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot '.tools') -Directory -Filter 'boost_*' -ErrorAction SilentlyContinue)
