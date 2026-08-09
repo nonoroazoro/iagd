@@ -703,17 +703,6 @@ namespace IAGrim.UI {
             new WindowSizeManager(this, settingsService);
 
 
-            // Suggest translation packs if available
-            if (settingsService.GetLocal().LanguageCode.Equals("EN", StringComparison.OrdinalIgnoreCase) && !settingsService.GetLocal().HasSuggestedLanguageChange) {
-                if (LocalizationLoader.HasSupportedTranslations(grimDawnDetector.GetGrimLocations())) {
-                    Logger.Debug("A new language pack has been detected, informing end user..");
-                    new LanguagePackPicker(settingsService).ShowDialog();
-
-                    settingsService.GetLocal().HasSuggestedLanguageChange = true;
-                }
-            }
-
-
             if (settingsService.GetPersistent().DarkMode) {
                 dm.Activate(); // Needs a lot more work before its ready, for example custom components uses Draw and does not respect coloring.
                 _cefBrowserHandler.SetDarkMode(settingsService.GetPersistent().DarkMode);

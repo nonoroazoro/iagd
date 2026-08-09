@@ -12,7 +12,6 @@ namespace IAGrim.Database.Interfaces {
         IReadOnlyList<ItemRecordMetadata> GetItemMetadataByNameTags(IReadOnlyCollection<string> nameTags);
 
         long GetRowCount();
-        long GetRowCountForRecordsLike(string pattern);
         IList<ItemSetAssociation> GetItemSetAssociations();
         IList<string> GetSpecialStackableRecords();
         IList<string> GetStackableComponentsPotionsMisc();

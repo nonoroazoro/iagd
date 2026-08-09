@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using IAGrim.Database;
@@ -128,14 +127,6 @@ namespace IAGrim.Parsers.Arz {
             }
 
             return x;
-        }
-
-        /// <summary>
-        /// Check if any GD install path has non-EN Text_XX.arc files available.
-        /// </summary>
-        public static bool HasSupportedTranslations(IEnumerable<string> grimDawnInstallPaths) {
-            return LanguageMapping.GetAvailableLanguages(grimDawnInstallPaths)
-                .Any(LanguageMapping.IsFullySupported);
         }
     }
 }

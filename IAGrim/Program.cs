@@ -4,7 +4,6 @@ using IAGrim.Backup.Cloud;
 using IAGrim.Database;
 using IAGrim.Database.Interfaces;
 using IAGrim.Database.Migrations;
-using IAGrim.Parsers.Arz;
 using IAGrim.Parsers.GameDataParsing.Service;
 using IAGrim.Services;
 using IAGrim.Settings;
@@ -52,26 +51,28 @@ namespace IAGrim
             return false;
         }
 
-        private static bool HasChineseGameArchive(GrimDawnDetector grimDawnDetector) {
-            try {
-                return LanguageMapping.GetAvailableLanguages(grimDawnDetector.GetGrimLocations())
-                    .Any(code => code.Equals("ZH", StringComparison.OrdinalIgnoreCase));
-            }
-            catch (Exception ex) {
-                Logger.Warn("Unable to inspect Grim Dawn language archives; using the parsed tags instead.", ex);
-                return false;
-            }
-        }
-
         internal static string ResolveItemLanguageCode(
             string parsedLanguageCode,
-            bool hasChineseGameData,
-            bool hasChineseGameArchive) {
+            bool hasChineseGameData) {
             if (!string.IsNullOrEmpty(parsedLanguageCode)) {
                 return parsedLanguageCode;
             }
 
-            return hasChineseGameData || hasChineseGameArchive ? "ZH" : "EN";
+            return hasChineseGameData ? "ZH" : "EN";
+        }
+
+        internal static string ResolveRequestedItemLanguageCode(string uiLanguageCode) {
+            return uiLanguageCode.Equals("ZH", StringComparison.OrdinalIgnoreCase) ? "ZH" : "EN";
+        }
+
+        private static void _showInitialLanguagePicker(SettingsService settings) {
+            if (settings.GetLocal().HasSuggestedLanguageChange) {
+                return;
+            }
+
+            settings.GetLocal().HasSuggestedLanguageChange = true;
+            using var picker = new LanguagePackPicker(settings);
+            picker.ShowDialog();
         }
 
 
@@ -225,10 +226,12 @@ namespace IAGrim
             var gameTags = databaseItemDao.GetTagDictionary();
             var itemLanguageCode = ResolveItemLanguageCode(
                 settingsService.GetLocal().ParsedLanguageCode,
-                ContainsChineseText(gameTags.Values),
-                HasChineseGameArchive(grimDawnDetector));
+                ContainsChineseText(gameTags.Values));
             RuntimeSettings.InitializeLanguage(settingsService.GetLocal().LanguageCode, itemLanguageCode, gameTags);
             Timed("InitializeLanguage");
+
+            _showInitialLanguagePicker(settingsService);
+            Timed("ShowInitialLanguagePicker");
 #if DEBUG
             DumpTranslationTemplate();
             Timed("DumpTranslationTemplate");
@@ -246,17 +249,8 @@ namespace IAGrim
             var itemTagDao = serviceProvider.Get<IItemTagDao>();
             var databaseItemStatDao = serviceProvider.Get<IDatabaseItemStatDao>();
             var itemSkillDao = serviceProvider.Get<IItemSkillDao>();
-            ParsingService parsingService = new ParsingService(itemTagDao, string.Empty, databaseItemDao, databaseItemStatDao, itemSkillDao, itemLanguageCode);
-
-            // Before the main window exists: this is modal, and it may reload the language.
-            var autoParsed = StartupService.PerformMissingExpansionDataCheck(
-                parsingService,
-                databaseItemDao,
-                serviceProvider.Get<IPlayerItemDao>(),
-                grimDawnDetector,
-                settingsService
-            );
-            Timed("PerformMissingExpansionDataCheck");
+            var requestedItemLanguageCode = ResolveRequestedItemLanguageCode(settingsService.GetLocal().LanguageCode);
+            ParsingService parsingService = new ParsingService(itemTagDao, string.Empty, databaseItemDao, databaseItemStatDao, itemSkillDao, requestedItemLanguageCode);
 
             StartupService.PrintStartupInfo(factory, settingsService);
 
@@ -278,10 +272,7 @@ namespace IAGrim
 
             Logger.Info("Checking for database updates..");
 
-            // An automatic parse already queued a full icon extraction, no need to scan the arc files twice.
-            if (!autoParsed) {
-                StartupService.PerformIconCheck(grimDawnDetector, settingsService);
-            }
+            StartupService.PerformIconCheck(grimDawnDetector, settingsService);
 
 
             if (settingsService.GetPersistent().DarkMode) {

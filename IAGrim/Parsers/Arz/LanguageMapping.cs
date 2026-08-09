@@ -13,15 +13,6 @@ namespace IAGrim.Parsers.Arz {
             { "ZH", "简体中文" },
         };
 
-        /// <summary>
-        /// Language codes for which we ship a full IA translation override file.
-        /// </summary>
-        private static readonly HashSet<string> FullySupportedCodes = new HashSet<string> {
-            "ZH"
-        };
-
-        public static bool IsFullySupported(string code) => FullySupportedCodes.Contains(code.ToUpperInvariant());
-
         public static IReadOnlyList<string> GetSupportedUiLanguages() {
             return CodeToDisplayName.Keys.ToArray();
         }
@@ -42,24 +33,5 @@ namespace IAGrim.Parsers.Arz {
             return File.Exists(path) ? path : null;
         }
 
-        /// <summary>
-        /// Scans a GD install path's resources folder for available Text_XX.arc files,
-        /// returns the distinct language codes found.
-        /// </summary>
-        public static IEnumerable<string> GetAvailableLanguages(IEnumerable<string> grimDawnPaths) {
-            var codes = new HashSet<string>();
-            foreach (var basePath in grimDawnPaths) {
-                var resourcesDir = Path.Combine(basePath, "resources");
-                if (!Directory.Exists(resourcesDir)) continue;
-
-                foreach (var file in Directory.EnumerateFiles(resourcesDir, "Text_*.arc")) {
-                    var fileName = Path.GetFileNameWithoutExtension(file); // e.g. "Text_DE"
-                    var code = fileName.Substring("Text_".Length).ToUpperInvariant();
-                    codes.Add(code);
-                }
-            }
-
-            return codes.OrderBy(c => c);
-        }
     }
 }

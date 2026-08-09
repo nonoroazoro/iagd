@@ -1,11 +1,9 @@
 ﻿using EvilsoftCommons.Exceptions;
 using IAGrim.Database;
 using IAGrim.Database.Dto;
-using IAGrim.Database.Interfaces;
 using IAGrim.Parsers.Arz;
 using IAGrim.Parsers.GameDataParsing.Service;
 using IAGrim.Settings;
-using IAGrim.UI;
 using IAGrim.Utilities;
 using IAGrim.Utilities.HelperClasses;
 using log4net;
@@ -171,123 +169,6 @@ namespace IAGrim {
             else {
                 Logger.Info("Grim dawn install is unset, skipping update check.");
             }
-        }
-
-        /// <summary>
-        /// A record path that only exists in a given expansion's data, paired with the folder that
-        /// tells us the user owns it. Add an entry when the next expansion ships.
-        /// </summary>
-        private static readonly (string Folder, string RecordPattern, string Name)[] ExpansionDataMarkers = {
-            ("gdx3", "%ascendedrandomizers%", "Fangs of Asterkarn")
-        };
-
-        /// <summary>
-        /// Parses the Grim Dawn database when we can tell it is missing the data for an expansion the
-        /// user owns. Buying an expansion and never re-parsing is by far the most common support request:
-        /// the items exist in the game but not in IA, and the fix is a database parse the user has no
-        /// reason to know about.
-        /// Returns true if a parse was performed.
-        /// </summary>
-        public static bool PerformMissingExpansionDataCheck(
-            ParsingService parsingService,
-            IDatabaseItemDao databaseItemDao,
-            IPlayerItemDao playerItemDao,
-            GrimDawnDetector grimDawnDetector,
-            SettingsService settings
-        ) {
-            try {
-                string gdPath = settings.GetLocal().CurrentGrimdawnLocation;
-
-                if (string.IsNullOrEmpty(gdPath) || !Directory.Exists(gdPath)) {
-                    gdPath = grimDawnDetector.GetGrimLocations().FirstOrDefault() ?? string.Empty;
-                }
-
-                if (string.IsNullOrEmpty(gdPath) || !Directory.Exists(gdPath)) {
-                    Logger.Warn("Could not find the Grim Dawn install location, skipping the expansion data check.");
-                    return false;
-                }
-
-                var alreadyAttempted = settings.GetLocal().AutoParsedExpansions;
-
-                foreach (var marker in ExpansionDataMarkers) {
-                    if (!Directory.Exists(Path.Combine(gdPath, marker.Folder))) {
-                        continue; // The user does not own this expansion.
-                    }
-
-                    if (alreadyAttempted.Contains(marker.Folder)) {
-                        Logger.Debug($"An automatic parse for {marker.Name} has already been attempted, skipping.");
-                        continue;
-                    }
-
-                    if (databaseItemDao.GetRowCountForRecordsLike(marker.RecordPattern) > 0) {
-                        continue; // The expansion data is present, nothing to do.
-                    }
-
-                    Logger.Info($"The database has no items for {marker.Name} but the expansion is installed, parsing the game database.");
-
-                    if (!AutoParseDatabase(parsingService, databaseItemDao, playerItemDao, settings, gdPath)) {
-                        return false;
-                    }
-
-                    // Only a completed parse counts as handled. Transient read failures must be retried.
-                    settings.GetLocal().AutoParsedExpansions = new List<string>(alreadyAttempted) { marker.Folder };
-                    return true;
-                }
-
-                return false;
-            }
-            catch (Exception ex) {
-                // Never block startup over this, the user can still parse manually.
-                Logger.Warn("Error checking for missing expansion data", ex);
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Mirrors the "Load database" button: a clean slate, a full parse, then a player item stat refresh.
-        /// </summary>
-        private static bool AutoParseDatabase(
-            ParsingService parsingService,
-            IDatabaseItemDao databaseItemDao,
-            IPlayerItemDao playerItemDao,
-            SettingsService settings,
-            string gdPath
-        ) {
-            var modPath = settings.GetLocal().CurrentGrimdawnMod;
-
-            if (!string.IsNullOrEmpty(modPath) && !Directory.Exists(modPath)) {
-                Logger.Warn($"The previously parsed mod \"{modPath}\" no longer exists, parsing without it.");
-                modPath = string.Empty;
-            }
-
-            parsingService.Update(gdPath, modPath);
-            if (!parsingService.Execute()) {
-                Logger.Warn("Automatic database parse failed; preserving the previous item stats and settings.");
-                return false;
-            }
-
-            using (var updatingPlayerItemsScreen = new UpdatingPlayerItemsScreen(playerItemDao)) {
-                updatingPlayerItemsScreen.ShowDialog();
-            }
-
-            settings.GetLocal().CurrentGrimdawnLocation = gdPath;
-            settings.GetLocal().CurrentGrimdawnMod = modPath;
-            settings.GetLocal().GrimDawnLocationLastModified = ParsingService.GetHighestTimestamp(gdPath);
-            settings.GetLocal().HasWarnedGrimDawnUpdate = false;
-            settings.GetLocal().IsGrimDawnParsed = databaseItemDao.GetRowCount() > 0;
-            settings.GetLocal().ParsedLanguageCode = parsingService.LanguageCode;
-
-            // The item tags were dropped and rebuilt by the parse, but the language was loaded from the
-            // old ones during startup. Without this every item name would render as a raw tag.
-            RuntimeSettings.InitializeLanguage(
-                settings.GetLocal().LanguageCode,
-                settings.GetLocal().ParsedLanguageCode,
-                databaseItemDao.GetTagDictionary());
-
-            // A game update can add items whose icons have never been extracted, and the startup icon
-            // check is a file-count heuristic that will not notice those.
-            ArzParser.QueueIconExtraction(gdPath, modPath);
-            return true;
         }
 
         public void PerformIconCheck(GrimDawnDetector grimDawnDetector, SettingsService settings) {

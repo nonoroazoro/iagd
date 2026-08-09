@@ -347,22 +347,6 @@ namespace IAGrim.Database {
             }
         }
 
-        /// <summary>
-        /// Number of parsed items whose record path matches a SQL LIKE pattern, eg "%ascendedrandomizers%".
-        /// Used to detect that an expansion the user owns has never been parsed.
-        /// </summary>
-        public Int64 GetRowCountForRecordsLike(string pattern) {
-            var sql = $"SELECT COUNT(*) as N FROM {DatabaseItemTable.Table} WHERE {DatabaseItemTable.Record} LIKE :pattern";
-
-            using (ISession session = SessionCreator.OpenSession()) {
-                return session.CreateSQLQuery(sql)
-                    .SetParameter("pattern", pattern)
-                    .UniqueResult<Int64>();
-            }
-        }
-
-
-
         public void Clean() {
             // CREATE TABLE DatabaseItemStat_v2 (id_databaseitemstat  integer primary key autoincrement, id_databaseitem BIGINT, Stat TEXT, TextValue TEXT, val1 DOUBLE, constraint FK9663A5FC6B4AFA92 foreign key (id_databaseitem) references DatabaseItem_v2)
             string[] tables = new[] { "DatabaseItemStat_v2", "DatabaseItem_v2", "ItemTag" };
