@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
+using IAGrim.Database.Interfaces;
 using Newtonsoft.Json.Linq;
 
 namespace IAGrim.Services {
@@ -10,18 +11,12 @@ namespace IAGrim.Services {
         private static readonly Regex _buildUrlPattern = new Regex(
             "^https://(?:www\\.)?grimtools\\.com/calc/([A-Za-z0-9]{8})/?(?:[?#].*)?$",
             RegexOptions.Compiled | RegexOptions.IgnoreCase);
-        private readonly GdCliService _gdCliService;
+        private readonly IDatabaseItemDao _databaseItemDao;
         private readonly SemaphoreSlim _itemDatabaseLock = new SemaphoreSlim(1, 1);
         private string? _itemDatabaseScript;
 
-        public GrimToolsBuildService(GdCliService gdCliService) {
-            _gdCliService = gdCliService;
-        }
-
-        public bool IsAvailable => _gdCliService.IsAvailable;
-
-        public Task<bool> GetAvailabilityAsync() {
-            return _gdCliService.GetAvailabilityAsync();
+        public GrimToolsBuildService(IDatabaseItemDao databaseItemDao) {
+            _databaseItemDao = databaseItemDao;
         }
 
         public async Task<GrimToolsBuildResult> ResolveBaseRecordsAsync(string input, CancellationToken cancellationToken) {
@@ -43,26 +38,12 @@ namespace IAGrim.Services {
                 .Where(nameTag => !string.IsNullOrEmpty(nameTag))
                 .Select(nameTag => nameTag ?? string.Empty)
                 .ToArray();
-            IReadOnlyList<JToken> gdItems;
-            try {
-                var output = await _gdCliService.GetItemsByNameTagsAsync(nameTags, cancellationToken)
-                    .ConfigureAwait(false);
-                gdItems = ReadGdItems(output);
-            }
-            catch (OperationCanceledException) {
-                throw;
-            }
-            catch (GdCliQueryException) {
-                throw;
-            }
-            catch (Exception ex) {
-                throw new GdCliQueryException("gd-cli returned invalid item data.", ex);
-            }
+            var candidates = _databaseItemDao.GetItemMetadataByNameTags(nameTags);
             var records = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var resolvedIds = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var item in metadata.Values) {
-                var recordId = GrimToolsItemMatcher.MatchRecordId(item, gdItems);
+                var recordId = GrimToolsItemMatcher.MatchRecordId(item, candidates);
                 if (string.IsNullOrEmpty(recordId)) {
                     continue;
                 }
@@ -127,16 +108,6 @@ namespace IAGrim.Services {
             finally {
                 _itemDatabaseLock.Release();
             }
-        }
-
-        private static IReadOnlyList<JToken> ReadGdItems(string json) {
-            var root = JToken.Parse(json);
-            var items = root.Type == JTokenType.Array ? root as JArray : root["data"] as JArray;
-            if (items == null) {
-                throw new InvalidDataException("gd-cli returned an invalid item response.");
-            }
-
-            return items.Children().ToArray();
         }
 
         private static HttpClient CreateHttpClient() {

@@ -810,7 +810,6 @@ iatag_ui_grimtools_search_tooltip=按回车搜索 GrimTools Build 中已拥有�
 iatag_ui_grimtools_search_loading=正在加载 GrimTools Build...
 iatag_ui_grimtools_search_result=已解析 {0}/{1} 个 Build 装备槽。
 iatag_ui_grimtools_search_invalid=请输入 GrimTools Build 地址或 ID。
-iatag_ui_grimtools_gdcli_error=gd-cli 查询失败，请初始化 gd-cli 并检查其数据库。
 iatag_ui_grimtools_search_error=无法加载 GrimTools Build。
 iatag_ui_searchdelay=搜索延迟
 iatag_ui_seewhatchanged=查看更新内容

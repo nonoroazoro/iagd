@@ -280,6 +280,66 @@ namespace IAGrim.Database {
             }
         }
 
+        public IReadOnlyList<ItemRecordMetadata> GetItemMetadataByNameTags(IReadOnlyCollection<string> nameTags) {
+            var distinctNameTags = nameTags
+                .Where(nameTag => !string.IsNullOrEmpty(nameTag))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (distinctNameTags.Length == 0) {
+                return Array.Empty<ItemRecordMetadata>();
+            }
+
+            string sql = $@"
+                SELECT
+                    I.{DatabaseItemTable.Record} AS RecordId,
+                    COALESCE(
+                        MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'itemNameTag' THEN S.{DatabaseItemStatTable.TextValue} END),
+                        MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'description' THEN S.{DatabaseItemStatTable.TextValue} END)
+                    ) AS NameTag,
+                    MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'levelRequirement' THEN S.{DatabaseItemStatTable.Value} END) AS RequiredLevel,
+                    MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'itemLevel' THEN S.{DatabaseItemStatTable.Value} END) AS ItemLevel,
+                    MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'Class' THEN S.{DatabaseItemStatTable.TextValue} END) AS ItemClass,
+                    MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'itemClassification' THEN S.{DatabaseItemStatTable.TextValue} END) AS Rarity,
+                    COALESCE(
+                        MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'bitmap' THEN S.{DatabaseItemStatTable.TextValue} END),
+                        MAX(CASE WHEN S.{DatabaseItemStatTable.Stat} = 'artifactBitmap' THEN S.{DatabaseItemStatTable.TextValue} END)
+                    ) AS Bitmap
+                FROM {DatabaseItemTable.Table} I
+                JOIN {DatabaseItemStatTable.Table} S
+                    ON S.{DatabaseItemStatTable.Item} = I.{DatabaseItemTable.Id}
+                WHERE I.{DatabaseItemTable.Id} IN (
+                    SELECT NameStat.{DatabaseItemStatTable.Item}
+                    FROM {DatabaseItemStatTable.Table} NameStat
+                    WHERE NameStat.{DatabaseItemStatTable.Stat} IN ('itemNameTag', 'description')
+                        AND NameStat.{DatabaseItemStatTable.TextValue} IN (:nameTags)
+                )
+                AND S.{DatabaseItemStatTable.Stat} IN (
+                    'itemNameTag',
+                    'description',
+                    'levelRequirement',
+                    'itemLevel',
+                    'Class',
+                    'itemClassification',
+                    'bitmap',
+                    'artifactBitmap'
+                )
+                GROUP BY I.{DatabaseItemTable.Id}, I.{DatabaseItemTable.Record}";
+
+            using var session = SessionCreator.OpenSession();
+            return session.CreateSQLQuery(sql)
+                .AddScalar(nameof(ItemRecordMetadata.RecordId), NHibernateUtil.String)
+                .AddScalar(nameof(ItemRecordMetadata.NameTag), NHibernateUtil.String)
+                .AddScalar(nameof(ItemRecordMetadata.RequiredLevel), NHibernateUtil.Double)
+                .AddScalar(nameof(ItemRecordMetadata.ItemLevel), NHibernateUtil.Double)
+                .AddScalar(nameof(ItemRecordMetadata.ItemClass), NHibernateUtil.String)
+                .AddScalar(nameof(ItemRecordMetadata.Rarity), NHibernateUtil.String)
+                .AddScalar(nameof(ItemRecordMetadata.Bitmap), NHibernateUtil.String)
+                .SetParameterList("nameTags", distinctNameTags)
+                .SetResultTransformer(Transformers.AliasToBean<ItemRecordMetadata>())
+                .List<ItemRecordMetadata>()
+                .ToArray();
+        }
+
 
         public Int64 GetRowCount() {
             using (ISession session = SessionCreator.OpenSession()) {

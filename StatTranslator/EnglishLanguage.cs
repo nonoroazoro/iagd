@@ -417,7 +417,6 @@ namespace StatTranslator {
             {"iatag_ui_grimtools_search_loading", "Loading GrimTools build..."},
             {"iatag_ui_grimtools_search_result", "Resolved {0} of {1} build slots."},
             {"iatag_ui_grimtools_search_invalid", "Enter a GrimTools build URL or ID."},
-            {"iatag_ui_grimtools_gdcli_error", "gd-cli query failed. Initialize gd-cli and check its database."},
             {"iatag_ui_grimtools_search_error", "Unable to load the GrimTools build."},
             {"iatag_ui_itemquality_tooltip", "The minimum item quality"},
             {"iatag_ui_slotfilter_tooltip", "Slot/Type"},

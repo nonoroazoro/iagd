@@ -9,6 +9,7 @@ namespace IAGrim.Database.Interfaces {
         void Save(List<DatabaseItem> items, ProgressTracker progressTracker);
         void CreateItemIndexes(ProgressTracker progressTracker);
         IList<string> ListAllRecords();
+        IReadOnlyList<ItemRecordMetadata> GetItemMetadataByNameTags(IReadOnlyCollection<string> nameTags);
 
         long GetRowCount();
         long GetRowCountForRecordsLike(string pattern);

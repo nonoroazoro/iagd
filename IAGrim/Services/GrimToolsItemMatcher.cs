@@ -1,28 +1,32 @@
-using Newtonsoft.Json.Linq;
+using IAGrim.Database.Model;
 
 namespace IAGrim.Services {
     internal static class GrimToolsItemMatcher {
         public static string? MatchRecordId(
             GrimToolsItemMetadata item,
-            IReadOnlyList<JToken> gdItems) {
+            IReadOnlyList<ItemRecordMetadata> candidates) {
             if (string.IsNullOrEmpty(item.NameTag)) {
                 return null;
             }
 
-            var candidates = gdItems.Where(candidate =>
-                    string.Equals(candidate.Value<string>("nameTag"), item.NameTag, StringComparison.Ordinal)
-                    && Matches(candidate.Value<int?>("requiredLevel"), item.RequiredLevel)
-                    && Matches(candidate.Value<int?>("itemLevel"), item.ItemLevel)
-                    && Matches(candidate.Value<string>("itemClass"), item.ItemClass)
-                    && Matches(candidate.Value<string>("rarity"), item.Rarity)
-                    && MatchesBitmap(candidate.Value<string>("bitmap"), item.Bitmap))
+            var matches = candidates.Where(candidate =>
+                    string.Equals(candidate.NameTag, item.NameTag, StringComparison.Ordinal)
+                    && MatchesNumber(candidate.RequiredLevel, item.RequiredLevel)
+                    && MatchesNumber(candidate.ItemLevel, item.ItemLevel)
+                    && Matches(candidate.ItemClass, item.ItemClass)
+                    && Matches(candidate.Rarity, item.Rarity)
+                    && MatchesBitmap(candidate.Bitmap, item.Bitmap))
                 .Take(2)
                 .ToArray();
-            return candidates.Length == 1 ? candidates[0].Value<string>("recordId") : null;
+            return matches.Length == 1 ? matches[0].RecordId : null;
         }
 
         private static bool Matches<T>(T? actual, T? expected) {
             return expected == null || EqualityComparer<T>.Default.Equals(actual, expected);
+        }
+
+        private static bool MatchesNumber(double? actual, int? expected) {
+            return expected == null || (actual ?? 0) == expected;
         }
 
         private static bool MatchesBitmap(string? actual, string? expected) {
