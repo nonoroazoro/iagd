@@ -22,7 +22,7 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
         private readonly IDatabaseItemDao _databaseItemDao;
         private readonly IDatabaseItemStatDao _databaseItemStatDao;
         private readonly IItemSkillDao _itemSkillDao;
-        private readonly string _languageCode;
+        private string _languageCode;
         public event EventHandler? OnParseComplete;
 
         public string LanguageCode => _languageCode;
@@ -74,12 +74,30 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
             _modLocation = mod;
         }
 
+        internal static string ResolveAvailableLanguageCode(string requestedLanguageCode, bool languageArchiveExists) {
+            return requestedLanguageCode.Equals("EN", StringComparison.OrdinalIgnoreCase) || languageArchiveExists
+                ? requestedLanguageCode
+                : "EN";
+        }
+
         public bool Execute() {
+            string requestedArcFileName = $"text_{_languageCode.ToLowerInvariant()}.arc";
+            string requestedLanguageTags = _languageCode.Equals("EN", StringComparison.OrdinalIgnoreCase)
+                ? string.Empty
+                : GrimFolderUtility.FindArcFile(_grimdawnLocation, requestedArcFileName);
+            string availableLanguageCode = ResolveAvailableLanguageCode(
+                _languageCode,
+                !string.IsNullOrEmpty(requestedLanguageTags));
+
+            if (!availableLanguageCode.Equals(_languageCode, StringComparison.OrdinalIgnoreCase)) {
+                Logger.Warn($"Grim Dawn language {_languageCode} is unavailable; falling back to English game data.");
+            }
+
+            _languageCode = availableLanguageCode;
             string arcFileName = $"text_{_languageCode.ToLowerInvariant()}.arc";
 
             // Always load English first as fallback, then overlay selected language
             List<string> tagfiles = new List<string>();
-            var selectedLanguageTagsFound = _languageCode.Equals("EN", StringComparison.OrdinalIgnoreCase);
 
             // English tags first (fallback)
             string vanillaEnTags = GrimFolderUtility.FindArcFile(_grimdawnLocation, "text_en.arc");
@@ -101,11 +119,7 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
 
             // Selected language overlay (if not English)
             if (!_languageCode.Equals("EN", StringComparison.OrdinalIgnoreCase)) {
-                string vanillaLangTags = GrimFolderUtility.FindArcFile(_grimdawnLocation, arcFileName);
-                if (!string.IsNullOrEmpty(vanillaLangTags)) {
-                    tagfiles.Add(vanillaLangTags);
-                    selectedLanguageTagsFound = true;
-                }
+                tagfiles.Add(requestedLanguageTags);
 
                 foreach (string path in GrimFolderUtility.GetGrimExpansionFolders(_grimdawnLocation)) {
                     string expansionLangTags = GrimFolderUtility.FindArcFile(path, arcFileName);
@@ -124,7 +138,7 @@ namespace IAGrim.Parsers.GameDataParsing.Service {
 
 
             var baseArzFile = GrimFolderUtility.FindArzFile(_grimdawnLocation);
-            if (string.IsNullOrEmpty(baseArzFile) || tagfiles.Count == 0 || !selectedLanguageTagsFound) {
+            if (string.IsNullOrEmpty(baseArzFile) || tagfiles.Count == 0) {
                 Logger.Warn($"The selected Grim Dawn folder is missing required database or text archives: {_grimdawnLocation}");
                 ShowInvalidGameDataMessage();
                 return false;

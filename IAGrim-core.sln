@@ -17,7 +17,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EvilsoftCommons", "Evilsoft
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DllInjector", "DllInjector\DllInjector.csproj", "{C3F39D73-06A3-45C5-BDE1-BE98FE81FB04}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IAGrim.Tests", "IAGrim.Tests\IAGrim.Tests.csproj", "{B9941E8E-CF75-42C5-8B68-B0DE4F20CB16}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IAGrim.Tests", "tests\IAGrim.Tests.csproj", "{B9941E8E-CF75-42C5-8B68-B0DE4F20CB16}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

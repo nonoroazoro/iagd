@@ -647,7 +647,6 @@ namespace IAGrim.UI {
                     _searchWindow.ModSelectionHandler.GetAvailableModSelection(),
                     languagePackPicker,
                     settingsService,
-                    grimDawnDetector,
                     dm,
                     _automaticUpdateChecker
                 ),
@@ -708,7 +707,7 @@ namespace IAGrim.UI {
             if (settingsService.GetLocal().LanguageCode.Equals("EN", StringComparison.OrdinalIgnoreCase) && !settingsService.GetLocal().HasSuggestedLanguageChange) {
                 if (LocalizationLoader.HasSupportedTranslations(grimDawnDetector.GetGrimLocations())) {
                     Logger.Debug("A new language pack has been detected, informing end user..");
-                    new LanguagePackPicker(settingsService).Show(grimDawnDetector.GetGrimLocations());
+                    new LanguagePackPicker(settingsService).ShowDialog();
 
                     settingsService.GetLocal().HasSuggestedLanguageChange = true;
                 }

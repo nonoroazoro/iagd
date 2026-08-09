@@ -63,6 +63,17 @@ namespace IAGrim
             }
         }
 
+        internal static string ResolveItemLanguageCode(
+            string parsedLanguageCode,
+            bool hasChineseGameData,
+            bool hasChineseGameArchive) {
+            if (!string.IsNullOrEmpty(parsedLanguageCode)) {
+                return parsedLanguageCode;
+            }
+
+            return hasChineseGameData || hasChineseGameArchive ? "ZH" : "EN";
+        }
+
 
         /// <summary>
         ///  The main entry point for the application.
@@ -212,13 +223,10 @@ namespace IAGrim
 
             var databaseItemDao = serviceProvider.Get<IDatabaseItemDao>();
             var gameTags = databaseItemDao.GetTagDictionary();
-            var itemLanguageCode = settingsService.GetLocal().ParsedLanguageCode;
-            if (string.IsNullOrEmpty(itemLanguageCode)) {
-                itemLanguageCode = ContainsChineseText(gameTags.Values) || HasChineseGameArchive(grimDawnDetector)
-                    ? "ZH"
-                    : settingsService.GetLocal().LanguageCode;
-                settingsService.GetLocal().ParsedLanguageCode = itemLanguageCode;
-            }
+            var itemLanguageCode = ResolveItemLanguageCode(
+                settingsService.GetLocal().ParsedLanguageCode,
+                ContainsChineseText(gameTags.Values),
+                HasChineseGameArchive(grimDawnDetector));
             RuntimeSettings.InitializeLanguage(settingsService.GetLocal().LanguageCode, itemLanguageCode, gameTags);
             Timed("InitializeLanguage");
 #if DEBUG

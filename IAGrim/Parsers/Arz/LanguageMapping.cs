@@ -22,6 +22,10 @@ namespace IAGrim.Parsers.Arz {
 
         public static bool IsFullySupported(string code) => FullySupportedCodes.Contains(code.ToUpperInvariant());
 
+        public static IReadOnlyList<string> GetSupportedUiLanguages() {
+            return CodeToDisplayName.Keys.ToArray();
+        }
+
         public static string GetDisplayName(string code) {
             return CodeToDisplayName.TryGetValue(code.ToUpperInvariant(), out var name) ? name : code;
         }

@@ -12,7 +12,6 @@ using IAGrim.Settings;
 namespace IAGrim.UI {
     public partial class LanguagePackPicker : Form {
         private static readonly ILog Logger = LogManager.GetLogger(typeof(LanguagePackPicker));
-        private IEnumerable<string>? _paths;
         private readonly List<FirefoxRadioButton> _checkboxes = new List<FirefoxRadioButton>();
         private readonly SettingsService _settings;
         private Panel? _languageList;
@@ -21,11 +20,6 @@ namespace IAGrim.UI {
             InitializeComponent();
 
             _settings = settings;
-        }
-
-        public DialogResult Show(IEnumerable<string> paths) {
-            this._paths = paths;
-            return ShowDialog();
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData) {
@@ -85,14 +79,7 @@ namespace IAGrim.UI {
 
             var n = 0;
             var currentCode = _settings.GetLocal().LanguageCode;
-            var availableCodes = LanguageMapping.GetAvailableLanguages(_paths ?? Enumerable.Empty<string>())
-                .Where(LanguageMapping.IsFullySupported)
-                .ToList();
-
-            // Always show English first
-            if (!availableCodes.Contains("EN")) {
-                availableCodes.Insert(0, "EN");
-            }
+            var availableCodes = LanguageMapping.GetSupportedUiLanguages();
 
             foreach (var code in availableCodes) {
                 var displayName = LanguageMapping.GetDisplayName(code);

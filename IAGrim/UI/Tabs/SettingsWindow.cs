@@ -22,7 +22,6 @@ namespace IAGrim.UI.Tabs {
         private readonly CefBrowserHandler _cefBrowserHandler;
         private readonly LanguagePackPicker _languagePackPicker;
         private readonly SettingsService _settings;
-        private readonly GrimDawnDetector _grimDawnDetector;
         private readonly AutomaticUpdateChecker _automaticUpdateChecker;
 
 
@@ -33,7 +32,7 @@ namespace IAGrim.UI.Tabs {
             IPlayerItemDao playerItemDao,
             GDTransferFile[] modFilter,
             LanguagePackPicker languagePackPicker,
-            SettingsService settings, GrimDawnDetector grimDawnDetector, DarkMode darkModeToggler,
+            SettingsService settings, DarkMode darkModeToggler,
             AutomaticUpdateChecker automaticUpdateChecker) {
             InitializeComponent();
             _controller = new SettingsController(settings);
@@ -44,7 +43,6 @@ namespace IAGrim.UI.Tabs {
             this._modFilter = modFilter;
             _languagePackPicker = languagePackPicker;
             _settings = settings;
-            _grimDawnDetector = grimDawnDetector;
             _automaticUpdateChecker = automaticUpdateChecker;
 
             _controller.BindCheckbox(cbMinimizeToTray);
@@ -117,7 +115,7 @@ namespace IAGrim.UI.Tabs {
         }
 
         private void buttonLanguageSelect_Click(object sender, EventArgs e) {
-            _languagePackPicker.Show(_grimDawnDetector.GetGrimLocations());
+            _languagePackPicker.ShowDialog();
             _itemViewUpdateTrigger?.Invoke();
         }
 
