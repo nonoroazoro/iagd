@@ -652,6 +652,10 @@ namespace IAGrim.Database {
                 queryParams.Add("name", $"%{query.Wildcard.Replace(' ', '%').ToLowerInvariant()}%");
             }
 
+            if (query.BaseRecords.Count > 0) {
+                queryFragments.Add($"BI.{BuddyItemsTable.BaseRecord} IN ( :baseRecords )");
+            }
+
 
             queryFragments.Add($"(LOWER(BI.{BuddyItemsTable.Mod}) = LOWER( :mod ) OR BI.{BuddyItemsTable.Mod} IS NULL)");
             queryParams.Add("mod", query.Mod ?? string.Empty);
@@ -752,6 +756,10 @@ namespace IAGrim.Database {
                 foreach (var key in queryParams.Keys) {
                     q.SetParameter(key, queryParams[key]);
                     Logger.Debug($"{key}: " + queryParams[key]);
+                }
+
+                if (query.BaseRecords.Count > 0) {
+                    q.SetParameterList("baseRecords", query.BaseRecords);
                 }
 
                 if (subquery != null) {

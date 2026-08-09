@@ -2,6 +2,7 @@
 using IAGrim.Database.Dto;
 using IAGrim.Database.Interfaces;
 using IAGrim.Parsers.Arz;
+using IAGrim.Services;
 using IAGrim.Services.ItemStats;
 using IAGrim.Settings;
 using IAGrim.Theme;
@@ -22,6 +23,7 @@ namespace IAGrim.UI.Tabs {
         private System.Windows.Forms.Timer? _delayedTextChangedTimer;
         private DesiredSkills? _filterWindow;
         private TextBox _searchBox;
+        private TextBox _grimToolsSearchBox;
         private CheckBox? _orderByLevel;
         private CheckBox? _orderByQuantity;
         private CheckBox? _duplicatesOnly;
@@ -38,6 +40,10 @@ namespace IAGrim.UI.Tabs {
         private ScrollPanelMessageFilter? _scrollableFilterView;
         private ToolStripContainer _toolStripContainer;
         private readonly SettingsService _settings;
+        private readonly GrimToolsBuildService _grimToolsBuildService;
+        private IReadOnlyList<string> _grimToolsBaseRecords = Array.Empty<string>();
+        private CancellationTokenSource? _grimToolsCancellation;
+        private bool _changingSearchMode;
         private ToolTip? toolTip1;
         private System.ComponentModel.IContainer? components;
         private readonly int FilterPanelMinSize;
@@ -63,12 +69,16 @@ namespace IAGrim.UI.Tabs {
             Action<string> setStatus,
             IPlayerItemDao playerItemDao,
             SearchController searchController,
-            IItemTagDao itemTagDao, SettingsService settings) {
+            IItemTagDao itemTagDao,
+            SettingsService settings,
+            GrimToolsBuildService grimToolsBuildService) {
             _setStatus = setStatus;
             _searchController = searchController;
             _itemTagDao = itemTagDao;
             _settings = settings;
+            _grimToolsBuildService = grimToolsBuildService;
             InitializeComponent();
+            _grimToolsSearchBox!.Visible = false;
 
             Dock = DockStyle.Fill;
 
@@ -142,6 +152,7 @@ namespace IAGrim.UI.Tabs {
         /// </summary>
         public void ClearFilters() {
             _filterWindow!.ClearFilters();
+            ClearGrimToolsSearch(true);
             _searchBox.Text = string.Empty;
             _itemQuality!.SelectedIndex = 0;
             _slotFilter!.SelectedIndex = 0;
@@ -188,6 +199,7 @@ namespace IAGrim.UI.Tabs {
 
             var query = new ItemSearchRequest {
                 Wildcard = _searchBox.Text,
+                BaseRecords = _grimToolsBaseRecords,
                 StatValueFilters = filters.NumericFilters ?? new List<StatValueFilter>(),
                 Filters = filters.Filters ?? new List<string[]>(),
                 MinimumLevel = ParseNumeric(_minLevel!),
@@ -245,10 +257,7 @@ namespace IAGrim.UI.Tabs {
         }
 
         private void HandleDelayedTextChangedTimerTick(object? sender, EventArgs e) {
-            if (_delayedTextChangedTimer != null) {
-                _delayedTextChangedTimer.Stop();
-                _delayedTextChangedTimer = null;
-            }
+            CancelDelayedSearch();
 
             if (InvokeRequired) {
                 Invoke((MethodInvoker) delegate { UpdateListView(_filterWindow!.Filters); });
@@ -371,6 +380,8 @@ namespace IAGrim.UI.Tabs {
             FormClosing += SplitSearchWindow_FormClosing;
 
             _searchBox.TextChanged += SearchBox_TextChanged;
+            _grimToolsSearchBox!.KeyDown += GrimToolsSearchBox_KeyDown;
+            _grimToolsSearchBox.TextChanged += GrimToolsSearchBox_TextChanged;
 
             _orderByLevel!.CheckStateChanged += delegate { SortModeChanged(_orderByLevel!, _orderByQuantity!); };
             _orderByQuantity!.CheckStateChanged += delegate { SortModeChanged(_orderByQuantity!, _orderByLevel!); };
@@ -380,11 +391,131 @@ namespace IAGrim.UI.Tabs {
             _mainSplitter.SizeChanged += FlowPanelFilter_Resize;
 
             LocalizationLoader.ApplyTooltipLanguage(toolTip1!, Controls, RuntimeSettings.Language!);
+            _searchBox.PlaceholderText = Localize(
+                "iatag_ui_searchbox_placeholder",
+                "Search items");
+            _grimToolsSearchBox.PlaceholderText = Localize(
+                "iatag_ui_grimtools_search_placeholder",
+                "GrimTools build URL or ID");
             FlowPanelFilter_Resize(this, EventArgs.Empty);
+            _ = UpdateGrimToolsAvailabilityAsync();
         }
 
         private void SearchBox_TextChanged(object? sender, EventArgs e) {
+            if (_changingSearchMode) {
+                return;
+            }
+
+            if (_grimToolsBaseRecords.Count > 0 || _grimToolsCancellation != null) {
+                ClearGrimToolsSearch(true);
+            }
+
             UpdateListViewDelayed(600);
+        }
+
+        private void GrimToolsSearchBox_TextChanged(object? sender, EventArgs e) {
+            if (_changingSearchMode || _grimToolsBaseRecords.Count == 0) {
+                return;
+            }
+
+            _grimToolsBaseRecords = Array.Empty<string>();
+            UpdateListViewDelayed();
+        }
+
+        private async void GrimToolsSearchBox_KeyDown(object? sender, KeyEventArgs e) {
+            if (e.KeyCode != Keys.Enter) {
+                return;
+            }
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            await SearchGrimToolsBuildAsync();
+        }
+
+        private async Task SearchGrimToolsBuildAsync() {
+            CancelDelayedSearch();
+            _grimToolsCancellation?.Cancel();
+            _grimToolsCancellation?.Dispose();
+            _grimToolsBaseRecords = Array.Empty<string>();
+            var cancellation = new CancellationTokenSource();
+            _grimToolsCancellation = cancellation;
+            _grimToolsSearchBox.Enabled = false;
+            _setStatus(Localize("iatag_ui_grimtools_search_loading", "Loading GrimTools build..."));
+
+            try {
+                var result = await _grimToolsBuildService.ResolveBaseRecordsAsync(
+                    _grimToolsSearchBox.Text,
+                    cancellation.Token);
+
+                _grimToolsBaseRecords = result.BaseRecords.Count > 0
+                    ? result.BaseRecords
+                    : ["records/__grimtools_no_match__.dbr"];
+                _changingSearchMode = true;
+                _searchBox.Clear();
+                _changingSearchMode = false;
+                _setStatus(string.Format(
+                    Localize("iatag_ui_grimtools_search_result", "Resolved {0} of {1} build slots."),
+                    result.ResolvedEquipmentCount,
+                    result.EquipmentCount));
+                UpdateListView();
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) {
+            }
+            catch (ArgumentException) {
+                _grimToolsBaseRecords = Array.Empty<string>();
+                UpdateListView();
+                _setStatus(Localize(
+                    "iatag_ui_grimtools_search_invalid",
+                    "Enter a GrimTools build URL or ID."));
+            }
+            catch (GdCliQueryException ex) {
+                _grimToolsBaseRecords = Array.Empty<string>();
+                Logger.Warn("Unable to query gd-cli for GrimTools equipment.", ex);
+                UpdateListView();
+                _setStatus(Localize(
+                    "iatag_ui_grimtools_gdcli_error",
+                    "gd-cli query failed. Initialize gd-cli and check its database."));
+            }
+            catch (Exception ex) {
+                _grimToolsBaseRecords = Array.Empty<string>();
+                Logger.Warn("Unable to resolve GrimTools build equipment.", ex);
+                UpdateListView();
+                _setStatus(Localize(
+                    "iatag_ui_grimtools_search_error",
+                    "Unable to load the GrimTools build."));
+            }
+            finally {
+                if (ReferenceEquals(_grimToolsCancellation, cancellation)) {
+                    _grimToolsCancellation.Dispose();
+                    _grimToolsCancellation = null;
+                    _grimToolsSearchBox.Enabled = true;
+                }
+            }
+        }
+
+        private void ClearGrimToolsSearch(bool clearInput) {
+            _grimToolsCancellation?.Cancel();
+            _grimToolsBaseRecords = Array.Empty<string>();
+            if (clearInput) {
+                _changingSearchMode = true;
+                _grimToolsSearchBox.Clear();
+                _changingSearchMode = false;
+            }
+        }
+
+        private async Task UpdateGrimToolsAvailabilityAsync() {
+            var available = await _grimToolsBuildService.GetAvailabilityAsync();
+            if (IsDisposed || Disposing) {
+                return;
+            }
+
+            _grimToolsSearchBox.Visible = available;
+            FlowPanelFilter_Resize(this, EventArgs.Empty);
+        }
+
+        private static string Localize(string tag, string fallback) {
+            var value = RuntimeSettings.Language?.GetTag(tag);
+            return string.IsNullOrEmpty(value) ? fallback : value;
         }
 
         private void SplitSearchWindow_Activated(object? sender, EventArgs e) {
@@ -407,12 +538,17 @@ namespace IAGrim.UI.Tabs {
                 Activated -= SplitSearchWindow_Activated;
                 Deactivate -= SplitSearchWindow_Deactivate;
 
+                _grimToolsCancellation?.Cancel();
+                _grimToolsCancellation?.Dispose();
+                _grimToolsCancellation = null;
+                CancelDelayedSearch();
+
                 _toolStripContainer.ContentPanel.Controls.Clear();
             }
         }
 
         private void UpdateListViewDelayed(int delay) {
-            _delayedTextChangedTimer?.Stop();
+            CancelDelayedSearch();
 
             if (delay > 0) {
                 _delayedTextChangedTimer = new System.Windows.Forms.Timer();
@@ -425,6 +561,12 @@ namespace IAGrim.UI.Tabs {
             }
         }
 
+        private void CancelDelayedSearch() {
+            _delayedTextChangedTimer?.Stop();
+            _delayedTextChangedTimer?.Dispose();
+            _delayedTextChangedTimer = null;
+        }
+
         private void InitializeComponent() {
             components = new System.ComponentModel.Container();
             _mainSplitter = new SplitContainer();
@@ -432,6 +574,7 @@ namespace IAGrim.UI.Tabs {
             webView21 = new WebView2();
             _flowPanelFilter = new FlowLayoutPanel();
             _searchBox = new TextBox();
+            _grimToolsSearchBox = new TextBox();
             _orderByLevel = new CheckBox();
             _orderByQuantity = new CheckBox();
             _duplicatesOnly = new CheckBox();
@@ -504,6 +647,7 @@ namespace IAGrim.UI.Tabs {
             _flowPanelFilter.AutoSize = true;
             _flowPanelFilter.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             _flowPanelFilter.Controls.Add(_searchBox);
+            _flowPanelFilter.Controls.Add(_grimToolsSearchBox);
             _flowPanelFilter.Controls.Add(_orderByLevel);
             _flowPanelFilter.Controls.Add(_orderByQuantity);
             _flowPanelFilter.Controls.Add(_itemQuality);
@@ -525,13 +669,26 @@ namespace IAGrim.UI.Tabs {
             _searchBox.AutoCompleteSource = AutoCompleteSource.RecentlyUsedList;
             _searchBox.Location = new Point(4, 20);
             _searchBox.Margin = new Padding(4, 20, 4, 3);
-            _searchBox.MaximumSize = new Size(512, 0);
+            _searchBox.MinimumSize = new Size(125, 0);
+            _searchBox.MaximumSize = new Size(220, 0);
             _searchBox.MaxLength = 255;
             _searchBox.Name = "_searchBox";
             _searchBox.Size = new Size(125, 23);
             _searchBox.TabIndex = 41;
             _searchBox.Tag = "iatag_ui_searchbox_tooltip";
             toolTip1.SetToolTip(_searchBox, "The item name, partially works fine.");
+            //
+            // _grimToolsSearchBox
+            //
+            _grimToolsSearchBox.Location = new Point(137, 20);
+            _grimToolsSearchBox.Margin = new Padding(4, 20, 4, 3);
+            _grimToolsSearchBox.MaxLength = 255;
+            _grimToolsSearchBox.Name = "_grimToolsSearchBox";
+            _grimToolsSearchBox.PlaceholderText = "GrimTools build URL or ID";
+            _grimToolsSearchBox.Size = new Size(220, 23);
+            _grimToolsSearchBox.TabIndex = 42;
+            _grimToolsSearchBox.Tag = "iatag_ui_grimtools_search_tooltip";
+            toolTip1.SetToolTip(_grimToolsSearchBox, "Press Enter to search owned base items from a GrimTools build.");
             // 
             // _orderByLevel
             // 
@@ -699,7 +856,10 @@ namespace IAGrim.UI.Tabs {
                 - _flowPanelFilter.Padding.Horizontal
                 - _searchBox.Margin.Horizontal
                 - reservedWidth;
-            _searchBox.Width = Math.Clamp(availableWidth, 300, _searchBox.MaximumSize.Width);
+            _searchBox.Width = Math.Clamp(
+                availableWidth,
+                _searchBox.MinimumSize.Width,
+                _searchBox.MaximumSize.Width);
             _searchBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         }
     }

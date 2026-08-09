@@ -9,6 +9,8 @@ namespace IAGrim.Database.Dto {
 
     public class ItemSearchRequest {
         public string? Wildcard { get; set; }
+        public IReadOnlyList<string> BaseRecords { get; set; } = Array.Empty<string>();
+        public bool GroupByDuplicateIdentity => BaseRecords.Count > 0 || DuplicatesOnly;
         public List<string[]> Filters { get; set; } = new List<string[]>();
 
         /// <summary>
@@ -65,6 +67,8 @@ namespace IAGrim.Database.Dto {
         public bool IsEmpty {
             get {
                 if (!String.IsNullOrEmpty(Wildcard))
+                    return false;
+                if (BaseRecords.Count > 0)
                     return false;
                 if (Filters.Count > 0)
                     return false;

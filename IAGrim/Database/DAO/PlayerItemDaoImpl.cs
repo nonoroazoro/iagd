@@ -850,7 +850,8 @@ namespace IAGrim.Database {
             var queryFragments = new List<string>();
             var queryParams = new Dictionary<string, object>();
             var statFilterListParams = new Dictionary<string, string[]>();
-            var useCanonicalGrouping = query.DuplicatesOnly || sortMode == ItemSortMode.Quantity;
+            var useCanonicalGrouping = query.GroupByDuplicateIdentity
+                || sortMode == ItemSortMode.Quantity;
 
             if (item != null) {
                 queryFragments.Add("(PI.id = :playerItemId)");
@@ -862,6 +863,10 @@ namespace IAGrim.Database {
                 queryFragments.Add("(PI.namelowercase LIKE :name OR R.id IN (SELECT replicaitemid FROM replicaitemrow WHERE IFNULL(textlowercase, text) LIKE :wildcard))");
                 queryParams.Add("wildcard", $"%{query.Wildcard.ToLowerInvariant()}%");
                 queryParams.Add("name", $"%{query.Wildcard.Replace(' ', '%').ToLowerInvariant()}%");
+            }
+
+            if (query.BaseRecords.Count > 0) {
+                queryFragments.Add("PI.BaseRecord IN ( :baseRecords )");
             }
 
             // Filter by mod/hc
@@ -1065,6 +1070,10 @@ namespace IAGrim.Database {
 
                 if (query.Slot?.Length > 0) {
                     target.SetParameterList("class", query.Slot);
+                }
+
+                if (query.BaseRecords.Count > 0) {
+                    target.SetParameterList("baseRecords", query.BaseRecords);
                 }
 
                 foreach (var key in statFilterListParams.Keys) {

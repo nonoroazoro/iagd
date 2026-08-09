@@ -43,7 +43,8 @@ namespace IAGrim.UI.Controller {
         // Are there more player items to fetch from the DB? If we know the exact total, compare against it;
         // otherwise fall back to "the last DB page came back full" (short-page detection), which lets
         // pagination work without paying for an up-front COUNT on the first page.
-        private bool UsesCanonicalGrouping => _lastQuery?.DuplicatesOnly == true || _lastSortMode == ItemSortMode.Quantity;
+        private bool UsesCanonicalGrouping => _lastQuery?.GroupByDuplicateIdentity == true
+            || _lastSortMode == ItemSortMode.Quantity;
         private bool MorePlayerPages => !UsesCanonicalGrouping
             && (_playerTotalKnown ? _dbSkip < _playerTotalCount : _lastDbPageFull);
 
@@ -131,7 +132,7 @@ namespace IAGrim.UI.Controller {
 
                 _itemPaginationService.Append(ItemOperationsUtility.MergeStackSize(
                     more,
-                    _lastQuery.DuplicatesOnly || _lastSortMode == ItemSortMode.Quantity));
+                    UsesCanonicalGrouping));
             }
 
             var items = _itemPaginationService.Fetch();
@@ -173,7 +174,9 @@ namespace IAGrim.UI.Controller {
 
             var items = _playerItemDao.SearchForItems(query, 0, ItemSortMode.Name, false, out _, out _, item);
             _playerItemDao.PopulateReplicaAndPetInfo(items);
-            var merged = ItemOperationsUtility.MergeStackSize(items, query.DuplicatesOnly);
+            var merged = ItemOperationsUtility.MergeStackSize(
+                items,
+                query.GroupByDuplicateIdentity);
             _itemStatService.ApplyStats(merged.SelectMany(m => m));
             var convertedItems = ItemHtmlWriter.ToJsonSerializable(merged);
             browser.AddItems(convertedItems, HasMore);
@@ -225,7 +228,8 @@ namespace IAGrim.UI.Controller {
                 }
 
                 var merged = ItemOperationsUtility.MergeStackSize(items,
-                    query.DuplicatesOnly || sortMode == ItemSortMode.Quantity);
+                    query.GroupByDuplicateIdentity
+                    || sortMode == ItemSortMode.Quantity);
 
                 if (_itemPaginationService.Update(merged, sortMode, _playerTotalCount + _buddyCount)) {
                     if (!ApplyItems(false)) {

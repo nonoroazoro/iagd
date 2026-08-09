@@ -86,6 +86,8 @@ namespace IAGrim.Services {
                 itemCollectionRepo,
                 settingsService
             );
+            var gdCliService = new GdCliService();
+            var grimToolsBuildService = new GrimToolsBuildService(gdCliService);
 
             List<object> services = [
                 itemTagDao,
@@ -103,7 +105,9 @@ namespace IAGrim.Services {
                 replicaItemDao,
                 computedItemStatDao,
                 new ItemStatPrecomputeService(computedItemStatDao, databaseItemStatDao),
-                itemStatService
+                itemStatService,
+                gdCliService,
+                grimToolsBuildService
             ];
 
             var cacher = new TransferStashServiceCache(databaseItemDao);
