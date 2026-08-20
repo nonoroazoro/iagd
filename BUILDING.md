@@ -41,3 +41,15 @@ To reuse existing hook DLLs without rebuilding native code:
 ```
 
 Before building, the script verifies and clears only the repository `artifacts` directory. Generated artifacts do not include `UserData` or PDB files.
+
+## GitHub Release
+
+The release workflow performs the same production build on a clean Windows runner. It installs its own .NET, Node.js, and Boost dependencies and never depends on the local `.tools` directory.
+
+Trigger a release from the repository default branch with:
+
+```powershell
+gh workflow run release.yml --ref master -f command=release
+```
+
+The workflow reads the generated IAGD production version, creates a GitHub Release with that version as its tag, and uploads `iagd-<version>-win-x64.zip`. The ZIP root contains the normal files produced under `artifacts`, without an extra wrapper directory.

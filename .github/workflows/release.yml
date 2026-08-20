@@ -1,0 +1,201 @@
+name: Release
+
+run-name: Production release from ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: Type release to create a production release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and release win-x64
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CI: true
+      DOTNET_NOLOGO: true
+      NUGET_PACKAGES: ${{ runner.temp }}\nuget-packages
+      BOOST_ARCHIVE_SHA256: b8911c98c2a95faa516aca354872b0ea63962a437382822aaf7bca95f528db65
+
+    steps:
+      - name: Validate release command
+        shell: pwsh
+        env:
+          RELEASE_COMMAND: ${{ inputs.command }}
+          RELEASE_REF_NAME: ${{ github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ($env:RELEASE_COMMAND -cne "release") {
+              throw "Release command must be exactly 'release'."
+          }
+          if ($env:RELEASE_REF_NAME -cne $env:DEFAULT_BRANCH) {
+              throw "Production releases must run from the default branch."
+          }
+
+      - name: Checkout source
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: WebUI/package-lock.json
+
+      - name: Cache Boost
+        id: boost-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}\boost_1_78_0
+          key: boost-1.78.0-msvc-14.3-x64-v1
+
+      - name: Prepare Boost
+        shell: pwsh
+        env:
+          BOOST_CACHE_HIT: ${{ steps.boost-cache.outputs.cache-hit }}
+        run: |
+          $boostRoot = Join-Path "${{ runner.temp }}" "boost_1_78_0"
+          $boostLibraryDirectory = Join-Path $boostRoot "lib64-msvc-14.3"
+
+          if ($env:BOOST_CACHE_HIT -ne "true") {
+              $installer = Join-Path "${{ runner.temp }}" "boost_1_78_0-msvc-14.3-64.exe"
+              $uri = "https://archives.boost.io/release/1.78.0/binaries/boost_1_78_0-msvc-14.3-64.exe"
+              Invoke-WebRequest -Uri $uri -OutFile $installer
+
+              $actualHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($actualHash -ne $env:BOOST_ARCHIVE_SHA256) {
+                  throw "Boost installer checksum mismatch."
+              }
+
+              $installerArguments = @(
+                  "/VERYSILENT",
+                  "/SUPPRESSMSGBOXES",
+                  "/NORESTART",
+                  "/DIR=$boostRoot"
+              )
+              $process = Start-Process -FilePath $installer -ArgumentList $installerArguments -Wait -PassThru
+              if ($process.ExitCode -ne 0) {
+                  throw "Boost installer failed with exit code $($process.ExitCode)."
+              }
+          }
+
+          $versionHeader = Join-Path $boostRoot "boost\version.hpp"
+          if (-not (Test-Path -LiteralPath $versionHeader -PathType Leaf) -or
+              -not (Test-Path -LiteralPath $boostLibraryDirectory -PathType Container)) {
+              throw "Boost 1.78.0 installation is incomplete."
+          }
+
+          "BOOST=$boostRoot" >> $env:GITHUB_ENV
+          "BOOST_LIBRARYDIR=$boostLibraryDirectory" >> $env:GITHUB_ENV
+
+      - name: Build production package
+        shell: pwsh
+        run: .\build-package.ps1 -InstallDependencies
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $solutionDirectory = (Resolve-Path -LiteralPath ".").Path.Replace("\", "/") + "/"
+          dotnet test tests\IAGrim.Tests.csproj `
+              --configuration Release `
+              "-p:SolutionDir=$solutionDirectory"
+          if ($LASTEXITCODE -ne 0) {
+              throw "Tests failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Package Windows ZIP
+        id: package
+        shell: pwsh
+        run: |
+          $artifactDirectory = Join-Path "${{ github.workspace }}" "artifacts"
+          $assemblyPath = Join-Path $artifactDirectory "IAGrim.dll"
+          if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) {
+              throw "Production build output is missing IAGrim.dll."
+          }
+
+          $productVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($assemblyPath).ProductVersion
+          $version = ($productVersion -split "\+", 2)[0]
+          if ($version -notmatch "^1\.5\.\d+\.\d{5}$") {
+              throw "Unexpected production version: $productVersion"
+          }
+
+          $assetName = "iagd-$version-win-x64.zip"
+          $archivePath = Join-Path "${{ runner.temp }}" $assetName
+          Compress-Archive -Path (Join-Path $artifactDirectory "*") -DestinationPath $archivePath
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $archive = [IO.Compression.ZipFile]::OpenRead($archivePath)
+          try {
+              $entryNames = @($archive.Entries | ForEach-Object { $_.FullName.Replace("/", "\") })
+              foreach ($requiredEntry in @(
+                  "IAGrim.exe",
+                  "IAGrim.dll",
+                  "ItemAssistantHook_x64.dll",
+                  "ItemAssistantHook_playtest_x64.dll",
+                  "dllver.txt",
+                  "Resources\index.html"
+              )) {
+                  if ($entryNames -notcontains $requiredEntry) {
+                      throw "Release archive is missing $requiredEntry."
+                  }
+              }
+          }
+          finally {
+              $archive.Dispose()
+          }
+
+          "archive=$archivePath" >> $env:GITHUB_OUTPUT
+          "tag=$version" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.package.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.package.outputs.version }}
+          ARCHIVE_PATH: ${{ steps.package.outputs.archive }}
+        run: |
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+              gh release upload $env:RELEASE_TAG $env:ARCHIVE_PATH `
+                  --clobber `
+                  --repo $env:GITHUB_REPOSITORY
+          }
+          else {
+              gh release create $env:RELEASE_TAG $env:ARCHIVE_PATH `
+                  --target $env:GITHUB_SHA `
+                  --title "IAGD $env:RELEASE_VERSION" `
+                  --generate-notes `
+                  --repo $env:GITHUB_REPOSITORY
+          }
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "GitHub Release creation failed with exit code $LASTEXITCODE."
+          }
