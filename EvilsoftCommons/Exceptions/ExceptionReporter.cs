@@ -81,7 +81,7 @@ namespace EvilsoftCommons.Exceptions {
                     return $"{version?.Major}.{version?.Minor}.{version?.Build}.{version?.Revision:00000}";
                 }
                 catch (Exception ex) {
-                    Logger.Warn("Error getting assembly version, automatic updates may not function correctly.");
+                    Logger.Warn("Error getting the entry assembly version, using the library version instead.");
                     Logger.Warn(ex.Message);
                     Logger.Warn(ex.StackTrace);
 
@@ -103,7 +103,7 @@ namespace EvilsoftCommons.Exceptions {
                     return VersionToDateTime(System.Reflection.Assembly.GetEntryAssembly()!.GetName().Version!);
                 }
                 catch (Exception ex) {
-                    Logger.Warn("Error getting assembly version, automatic updates may not function correctly.");
+                    Logger.Warn("Error getting the entry assembly version, using the library version instead.");
                     Logger.Warn(ex.Message);
                     Logger.Warn(ex.StackTrace);
 

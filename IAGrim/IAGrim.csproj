@@ -55,7 +55,7 @@
         <AssemblyTitle>GD Item Assistant</AssemblyTitle>
         <PackageProjectUrl>https://grimdawn.evilsoft.net</PackageProjectUrl>
         <PackageIcon>gd.png</PackageIcon>
-        <RepositoryUrl>https://github.com/marius00/iagd/</RepositoryUrl>
+        <RepositoryUrl>https://github.com/nonoroazoro/iagd/</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
     </PropertyGroup>
 

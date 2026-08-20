@@ -331,21 +331,6 @@ const helpEntries = [
         type: IHelpEntryType.Informational
     },
     {
-        title: `Settings: What is the difference between regular and experimental updates?`,
-        tag: 'RegularUpdates',
-        body: () => <div>
-            With regular updates you'll occasionally be notified of a new version of IA. <br/>
-            You'll always get the latest version, but it may take a couple of weeks before you're notified. <br/>
-            <b>Recommended for those who don't wish to be bothered with frequent updates.</b>
-			<br/><br/>
-            With experimental updates you'll always get the latest version of IA. <br/>
-            This can include very minor bugfixes, and may during periods mean daily updates. <br/>
-            <b>Recommended for those who always wish to be on the latest version, and don't mind upgrading
-                frequently.</b>
-        </div>,
-        type: IHelpEntryType.Informational
-    },
-    {
         title: `Cannot find the Grim Dawn installation`,
         tag: 'CannotFindGrimdawn',
         body: () => <div>

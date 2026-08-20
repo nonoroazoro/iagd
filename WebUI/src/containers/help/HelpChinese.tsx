@@ -331,21 +331,6 @@ const helpEntries = [
         type: IHelpEntryType.Informational
     },
     {
-        title: `设置：常规更新与实验性更新有什么区别？`,
-        tag: 'RegularUpdates',
-        body: () => <div>
-            使用常规更新时，IA 会偶尔通知你有新版本。 <br/>
-            最终仍会获得最新版本，但通知可能会延迟几周。 <br/>
-            <b>推荐给不想频繁更新的用户。</b>
-			<br/><br/>
-            使用实验性更新时，会始终获得 IA 的最新版本。 <br/>
-            其中可能只包含很小的 bugfix，某些时期甚至会每天更新。 <br/>
-            <b>推荐给希望始终使用最新版且不介意频繁升级的用户。
-                </b>
-        </div>,
-        type: IHelpEntryType.Informational
-    },
-    {
         title: `找不到 Grim Dawn 安装目录`,
         tag: 'CannotFindGrimdawn',
         body: () => <div>

@@ -42,12 +42,6 @@
             cbDualComputer = new FirefoxCheckBox();
             linkSourceCode = new LinkLabel();
             cbHideSkills = new FirefoxCheckBox();
-            pbAutomaticUpdates = new PanelBox();
-            linkCheckForUpdates = new LinkLabel();
-            helpWhatIsExperimentalUpdates = new LinkLabel();
-            helpWhatIsRegularUpdates = new LinkLabel();
-            radioBeta = new FirefoxRadioButton();
-            radioRelease = new FirefoxRadioButton();
             panelBox2 = new PanelBox();
             buttonPatreon = new Button();
             buttonPaypal = new Button();
@@ -59,7 +53,6 @@
             buttonViewLogs = new FirefoxButton();
             contextMenuStrip1.SuspendLayout();
             panelBox4.SuspendLayout();
-            pbAutomaticUpdates.SuspendLayout();
             panelBox2.SuspendLayout();
             panelBox1.SuspendLayout();
             SuspendLayout();
@@ -330,105 +323,6 @@
             cbHideSkills.Text = "Hide Skills";
             cbHideSkills.CheckedChanged += cbDisplaySkills_CheckedChanged;
             // 
-            // pbAutomaticUpdates
-            // 
-            pbAutomaticUpdates.BackColor = Color.FromArgb(240, 240, 240);
-            pbAutomaticUpdates.Controls.Add(linkCheckForUpdates);
-            pbAutomaticUpdates.Controls.Add(helpWhatIsExperimentalUpdates);
-            pbAutomaticUpdates.Controls.Add(helpWhatIsRegularUpdates);
-            pbAutomaticUpdates.Controls.Add(radioBeta);
-            pbAutomaticUpdates.Controls.Add(radioRelease);
-            pbAutomaticUpdates.Font = new Font("Segoe UI Semibold", 20F);
-            pbAutomaticUpdates.ForeColor = Color.Black;
-            pbAutomaticUpdates.HeaderColor = Color.FromArgb(231, 231, 231);
-            pbAutomaticUpdates.HeaderHeight = 40;
-            pbAutomaticUpdates.Location = new Point(14, 367);
-            pbAutomaticUpdates.Margin = new Padding(4, 3, 4, 3);
-            pbAutomaticUpdates.Name = "pbAutomaticUpdates";
-            pbAutomaticUpdates.NoRounding = false;
-            pbAutomaticUpdates.Size = new Size(558, 153);
-            pbAutomaticUpdates.TabIndex = 6;
-            pbAutomaticUpdates.Tag = "iatag_ui_update_title";
-            pbAutomaticUpdates.Text = "Automatic Updates";
-            pbAutomaticUpdates.TextLocation = "8; 5";
-            //
-            // linkCheckForUpdates
-            // 
-            linkCheckForUpdates.AutoSize = true;
-            linkCheckForUpdates.Font = new Font("Segoe UI", 8.25F);
-            linkCheckForUpdates.Location = new Point(436, 54);
-            linkCheckForUpdates.Margin = new Padding(4, 0, 4, 0);
-            linkCheckForUpdates.Name = "linkCheckForUpdates";
-            linkCheckForUpdates.Size = new Size(101, 13);
-            linkCheckForUpdates.TabIndex = 21;
-            linkCheckForUpdates.TabStop = true;
-            linkCheckForUpdates.Tag = "iatag_ui_checkforupdates";
-            linkCheckForUpdates.Text = "Check for updates";
-            linkCheckForUpdates.LinkClicked += linkLabel2_LinkClicked;
-            // 
-            // helpWhatIsExperimentalUpdates
-            // 
-            helpWhatIsExperimentalUpdates.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            helpWhatIsExperimentalUpdates.AutoSize = true;
-            helpWhatIsExperimentalUpdates.BackColor = Color.Transparent;
-            helpWhatIsExperimentalUpdates.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            helpWhatIsExperimentalUpdates.Location = new Point(198, 107);
-            helpWhatIsExperimentalUpdates.Margin = new Padding(4, 0, 4, 0);
-            helpWhatIsExperimentalUpdates.Name = "helpWhatIsExperimentalUpdates";
-            helpWhatIsExperimentalUpdates.Size = new Size(18, 13);
-            helpWhatIsExperimentalUpdates.TabIndex = 31;
-            helpWhatIsExperimentalUpdates.TabStop = true;
-            helpWhatIsExperimentalUpdates.Tag = "iatag_ui_questionmark";
-            helpWhatIsExperimentalUpdates.Text = " ? ";
-            helpWhatIsExperimentalUpdates.LinkClicked += helpWhatIsExperimentalUpdates_LinkClicked;
-            // 
-            // helpWhatIsRegularUpdates
-            // 
-            helpWhatIsRegularUpdates.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            helpWhatIsRegularUpdates.AutoSize = true;
-            helpWhatIsRegularUpdates.BackColor = Color.Transparent;
-            helpWhatIsRegularUpdates.Font = new Font("Segoe UI", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
-            helpWhatIsRegularUpdates.Location = new Point(198, 76);
-            helpWhatIsRegularUpdates.Margin = new Padding(4, 0, 4, 0);
-            helpWhatIsRegularUpdates.Name = "helpWhatIsRegularUpdates";
-            helpWhatIsRegularUpdates.Size = new Size(18, 13);
-            helpWhatIsRegularUpdates.TabIndex = 30;
-            helpWhatIsRegularUpdates.TabStop = true;
-            helpWhatIsRegularUpdates.Tag = "iatag_ui_questionmark";
-            helpWhatIsRegularUpdates.Text = " ? ";
-            helpWhatIsRegularUpdates.LinkClicked += helpWhatIsRegularUpdates_LinkClicked;
-            // 
-            // radioBeta
-            // 
-            radioBeta.Bold = false;
-            radioBeta.Checked = false;
-            radioBeta.EnabledCalc = true;
-            radioBeta.Font = new Font("Segoe UI", 10F);
-            radioBeta.ForeColor = Color.FromArgb(66, 78, 90);
-            radioBeta.Location = new Point(10, 100);
-            radioBeta.Margin = new Padding(4, 3, 4, 3);
-            radioBeta.Name = "radioBeta";
-            radioBeta.Size = new Size(530, 31);
-            radioBeta.TabIndex = 1;
-            radioBeta.Tag = "iatag_ui_checkupdatesdaily";
-            radioBeta.Text = "Check for updates daily";
-            radioBeta.CheckedChanged += radioBeta_CheckedChanged;
-            // 
-            // radioRelease
-            // 
-            radioRelease.Bold = false;
-            radioRelease.Checked = false;
-            radioRelease.EnabledCalc = true;
-            radioRelease.Font = new Font("Segoe UI", 10F);
-            radioRelease.ForeColor = Color.FromArgb(66, 78, 90);
-            radioRelease.Location = new Point(10, 62);
-            radioRelease.Margin = new Padding(4, 3, 4, 3);
-            radioRelease.Name = "radioRelease";
-            radioRelease.Size = new Size(530, 31);
-            radioRelease.TabIndex = 0;
-            radioRelease.Tag = "iatag_ui_checkupdatesweekly";
-            radioRelease.Text = "Check for updates weekly";
-            radioRelease.CheckedChanged += radioRelease_CheckedChanged;
             // 
             // panelBox2
             // 
@@ -602,7 +496,6 @@
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1022, 577);
             Controls.Add(panelBox4);
-            Controls.Add(pbAutomaticUpdates);
             Controls.Add(panelBox2);
             Controls.Add(panelBox1);
             Controls.Add(linkLabel1);
@@ -618,8 +511,6 @@
             contextMenuStrip1.ResumeLayout(false);
             panelBox4.ResumeLayout(false);
             panelBox4.PerformLayout();
-            pbAutomaticUpdates.ResumeLayout(false);
-            pbAutomaticUpdates.PerformLayout();
             panelBox2.ResumeLayout(false);
             panelBox1.ResumeLayout(false);
             ResumeLayout(false);
@@ -632,9 +523,6 @@
         private PanelBox panelBox2;
         private FirefoxButton buttonViewBackups;
         private FirefoxButton buttonViewLogs;
-        private PanelBox pbAutomaticUpdates;
-        private FirefoxRadioButton radioBeta;
-        private FirefoxRadioButton radioRelease;
         private System.Windows.Forms.LinkLabel linkLabel1;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
         private System.Windows.Forms.ToolStripMenuItem copyToolStripMenuItem;
@@ -649,11 +537,8 @@
         private System.Windows.Forms.LinkLabel helpWhatIsUsingMultiplePc;
         private System.Windows.Forms.Button buttonPaypal;
         private System.Windows.Forms.Button buttonPatreon;
-        private System.Windows.Forms.LinkLabel helpWhatIsExperimentalUpdates;
-        private System.Windows.Forms.LinkLabel helpWhatIsRegularUpdates;
         private FirefoxCheckBox cbStartMinimized;
         private FirefoxCheckBox cbDarkMode;
-        private System.Windows.Forms.LinkLabel linkCheckForUpdates;
         private FirefoxCheckBox cbAutoDismiss;
         private FirefoxCheckBox cbTransferAnyMod;
         private FirefoxCheckBox cbDelaySearch;

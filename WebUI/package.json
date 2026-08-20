@@ -7,7 +7,7 @@
     "build": "vite build",
     "serve": "vite preview --port 3000",
     "dev": "vite --port 3000",
-    "lint": "eslint 'src/**/*.{js,jsx,ts,tsx}'"
+    "lint": "eslint src --ext .js,.jsx,.ts,.tsx"
   },
   "dependencies": {
     "lucide-preact": "^0.469.0",

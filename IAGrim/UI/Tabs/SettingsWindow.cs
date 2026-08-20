@@ -22,9 +22,6 @@ namespace IAGrim.UI.Tabs {
         private readonly CefBrowserHandler _cefBrowserHandler;
         private readonly LanguagePackPicker _languagePackPicker;
         private readonly SettingsService _settings;
-        private readonly AutomaticUpdateChecker _automaticUpdateChecker;
-
-
         public SettingsWindow(
             CefBrowserHandler cefBrowserHandler,
             TooltipHelper tooltipHelper,
@@ -32,8 +29,7 @@ namespace IAGrim.UI.Tabs {
             IPlayerItemDao playerItemDao,
             GDTransferFile[] modFilter,
             LanguagePackPicker languagePackPicker,
-            SettingsService settings, DarkMode darkModeToggler,
-            AutomaticUpdateChecker automaticUpdateChecker) {
+            SettingsService settings, DarkMode darkModeToggler) {
             InitializeComponent();
             _controller = new SettingsController(settings);
             this._cefBrowserHandler = cefBrowserHandler;
@@ -43,8 +39,6 @@ namespace IAGrim.UI.Tabs {
             this._modFilter = modFilter;
             _languagePackPicker = languagePackPicker;
             _settings = settings;
-            _automaticUpdateChecker = automaticUpdateChecker;
-
             _controller.BindCheckbox(cbMinimizeToTray);
 
             _controller.BindCheckbox(cbHideSkills);
@@ -52,15 +46,11 @@ namespace IAGrim.UI.Tabs {
 
             // TODO: Write out the settingscontroller and add logic for updating showskills config
 
-            linkCheckForUpdates.Visible = Environment.Is64BitOperatingSystem;
-            pbAutomaticUpdates.Visible = Environment.Is64BitOperatingSystem;
         }
 
         private void SettingsWindow_Load(object sender, EventArgs e) {
             this.Dock = DockStyle.Fill;
 
-            radioBeta.Checked = _settings.GetPersistent().CheckUpdatesDaily;
-            radioRelease.Checked = !_settings.GetPersistent().CheckUpdatesDaily;
             cbDualComputer.Checked = _settings.GetPersistent().UsingDualComputer;
             cbStartMinimized.Checked = _settings.GetLocal().StartMinimized;
             cbDarkMode.Checked = _settings.GetPersistent().DarkMode;
@@ -77,14 +67,6 @@ namespace IAGrim.UI.Tabs {
 
         private void buttonViewLogs_Click(object sender, EventArgs e) {
             _controller.OpenLogFolder();
-        }
-
-        private void radioRelease_CheckedChanged(object sender, EventArgs e) {
-            _settings.GetPersistent().CheckUpdatesDaily = false;
-        }
-
-        private void radioBeta_CheckedChanged(object sender, EventArgs e) {
-            _settings.GetPersistent().CheckUpdatesDaily = true;
         }
 
         // create bindings and stick these into its own settings class
@@ -135,7 +117,7 @@ namespace IAGrim.UI.Tabs {
 
         private void linkSourceCode_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
             Process.Start(
-                new ProcessStartInfo { FileName = "https://github.com/marius00/iagd", UseShellExecute = true });
+                new ProcessStartInfo { FileName = "https://github.com/nonoroazoro/iagd", UseShellExecute = true });
         }
 
 
@@ -166,15 +148,6 @@ namespace IAGrim.UI.Tabs {
                 { FileName = "https://www.patreon.com/itemassistant", UseShellExecute = true });
         }
 
-        private void helpWhatIsRegularUpdates_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
-            _cefBrowserHandler.ShowHelp(HelpService.HelpType.RegularUpdates);
-        }
-
-        private void helpWhatIsExperimentalUpdates_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
-            _cefBrowserHandler.ShowHelp(HelpService.HelpType.RegularUpdates);
-        }
-
-
         private void cbStartMinimized_CheckedChanged(object sender, EventArgs e) {
             _settings.GetLocal().StartMinimized = (sender as FirefoxCheckBox)?.Checked == true;
         }
@@ -189,10 +162,6 @@ namespace IAGrim.UI.Tabs {
 
             _settings.GetPersistent().DarkMode = (sender as FirefoxCheckBox)?.Checked == true;
 
-        }
-
-        private void linkLabel2_LinkClicked(object sender, LinkLabelLinkClickedEventArgs e) {
-            _automaticUpdateChecker.CheckForUpdates(true);
         }
 
         private void cbAutoDismiss_CheckedChanged(object sender, EventArgs e) {

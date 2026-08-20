@@ -5,8 +5,6 @@
         private long? _buddySyncUserIdV3;
 
         // Settings
-        private bool? _checkUpdatesDaily;
-        private DateTime? _nextUpdateCheck;
         private bool? _minimizeToTray;
         private bool? _usingDualComputer;
         private bool? _transferAnyMod;
@@ -35,21 +33,6 @@
         }
 
         // Settings
-        public bool CheckUpdatesDaily {
-            get => _checkUpdatesDaily ?? false;
-            set {
-                _checkUpdatesDaily = value;
-                OnMutate?.Invoke(null, EventArgs.Empty);
-            }
-        }
-        public DateTime NextUpdateCheck {
-            get => _nextUpdateCheck ?? DateTime.UtcNow.AddDays(5);
-            set {
-                _nextUpdateCheck = value;
-                OnMutate?.Invoke(null, EventArgs.Empty);
-            }
-        }
-
         public bool MinimizeToTray {
             get => _minimizeToTray ?? true;
             set {

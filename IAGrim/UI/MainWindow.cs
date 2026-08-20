@@ -42,7 +42,6 @@ namespace IAGrim.UI {
         private readonly ServiceProvider _serviceProvider;
         private readonly TooltipHelper _tooltipHelper = new TooltipHelper();
         private readonly UsageStatisticsReporter _usageStatisticsReporter = new UsageStatisticsReporter();
-        private readonly AutomaticUpdateChecker _automaticUpdateChecker;
         private CharacterBackupService? _charBackupService;
 
         private readonly List<IMessageProcessor> _messageProcessors = new List<IMessageProcessor>();
@@ -202,7 +201,6 @@ namespace IAGrim.UI {
 
             _minimizeToTrayHandler = new MinimizeToTrayHandler(this, notifyIcon1, serviceProvider.Get<SettingsService>());
 
-            _automaticUpdateChecker = new AutomaticUpdateChecker(settingsService);
             _settingsController = new SettingsController(settingsService);
             _parsingService = parsingService;
             _userFeedbackService = new UserFeedbackService(_cefBrowserHandler);
@@ -364,8 +362,6 @@ namespace IAGrim.UI {
 
             _backupBackgroundTask?.Dispose();
             _usageStatisticsReporter.Dispose();
-            _automaticUpdateChecker.Dispose();
-
             _tooltipHelper?.Dispose();
 
             _buddyItemsService?.Dispose();
@@ -647,8 +643,7 @@ namespace IAGrim.UI {
                     _searchWindow.ModSelectionHandler.GetAvailableModSelection(),
                     languagePackPicker,
                     settingsService,
-                    dm,
-                    _automaticUpdateChecker
+                    dm
                 ),
                 settingsPanel);
 
@@ -659,12 +654,6 @@ namespace IAGrim.UI {
             _itemStatPrecomputeService = _serviceProvider.Get<ItemStatPrecomputeService>();
             _itemStatPrecomputeService.Start();
 
-
-#if !DEBUG
-            if (_automaticUpdateChecker.ShouldCheckForUpdates()) {
-                _automaticUpdateChecker.CheckForUpdates();
-            }
-#endif
 
             Shown += (_, __) => { StartInjector(); };
             _buddyItemsService = new BuddyItemsService(
@@ -866,7 +855,6 @@ namespace IAGrim.UI {
         /// <param name="e"></param>
         private void OnMinimizeWindow(object? sender, EventArgs e) {
             _usageStatisticsReporter.ResetLastMinimized();
-            _automaticUpdateChecker.ResetLastMinimized();
         }
 
 

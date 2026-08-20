@@ -4,10 +4,6 @@
 *.gst
 *.pdb
 *.suo
-/Auto updater/AutoUpdater.NET/obj
-/Auto updater/AutoUpdater.NET/bin
-/Auto updater/AutoUpdaterTest/bin
-/Auto updater/AutoUpdaterTest/obj
 /Installer
 /Inno/Compil32.exe
 /Inno/Default.isl

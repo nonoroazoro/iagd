@@ -22,7 +22,6 @@ namespace IAGrim.Services {
             NotLootingUnidentified,
             MultiplePcs,
             DelayWhenSearching,
-            RegularUpdates,
             WhatIsBuddyId,
             WhatIsBuddyNickname,
             OnlineBackups,

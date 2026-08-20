@@ -23,9 +23,8 @@ namespace IAGrim.Utilities {
                     Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("en-US");
                 }
 
-                // If the application has been minimized for 38 hours or more, stop checking for updates / statistics.
-                // This keeps IA from bringing annoying update notifications to those who just run it but no longer uses it (maybe just on weekends etc)
-                // And keeps daily usage statistics semi accurate, not counting the idlers.
+                // If the application has been minimized for 38 hours or more, stop reporting statistics.
+                // This keeps daily usage statistics semi accurate by excluding idle instances.
                 if ((DateTime.UtcNow - _lastTimeNotMinimized).TotalHours < 38) {
                     if (reportUsageStatistics.Elapsed.Hours > 12) {
                         ReportUsage();
