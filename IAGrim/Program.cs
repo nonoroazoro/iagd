@@ -127,6 +127,7 @@ namespace IAGrim
             ItemHtmlWriter.CopyMissingFiles();
 
             Guid guid = new Guid("{F3693953-C090-4F93-86A2-B98AB96A9368}");
+            var safeMode = StartupService.IsSafeMode(args);
             using (SingleInstance singleInstance = new SingleInstance(guid)) {
                 if (singleInstance.IsFirstInstance) {
                     Logger.Info("Calling run..");
@@ -137,12 +138,18 @@ namespace IAGrim
                     Run(args);
                 }
                 else {
-                    if (args != null && args.Length > 0) {
-                        singleInstance.PassArgumentsToFirstInstance(args);
+                    // Nothing listens for arguments from successive instances, so a safe mode reset here would just be overwritten by the running instance when it stores its window position on exit.
+                    if (safeMode) {
+                        Logger.Info("Safe mode requested, but IA is already running.");
+                        MessageBox.Show(
+                            "Item Assistant is already running, look for the icon in the system tray next to the clock.\n\n"
+                            + "Close the running instance and then start safe mode again.",
+                            "Item Assistant is already running", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
-                    else {
-                        singleInstance.PassArgumentsToFirstInstance(new string[] { "--ignore" });
-                    }
+
+                    // Ask the running instance to show itself, otherwise starting IA a second time looks like
+                    // nothing happened at all: the window may well be hidden away in the system tray.
+                    ShowExistingInstanceMessage.Notify();
 
                     Logger.Info("Already has an instance of IA Running, exiting..");
                 }
@@ -221,6 +228,12 @@ namespace IAGrim
 
             var settingsService = serviceProvider.Get<SettingsService>();
             var grimDawnDetector = serviceProvider.Get<GrimDawnDetector>();
+
+            // Must happen before the main window is created, it reads these settings on construction.
+            if (StartupService.IsSafeMode(args)) {
+                StartupService.ResetWindowSettings(settingsService);
+                Timed("Safe mode reset");
+            }
 
             var databaseItemDao = serviceProvider.Get<IDatabaseItemDao>();
             var gameTags = databaseItemDao.GetTagDictionary();

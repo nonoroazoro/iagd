@@ -136,6 +136,48 @@ namespace IAGrim {
             return SettingsService.Load(GlobalPaths.SettingsFile);
         }
 
+        /// <summary>
+        /// Startup argument for resetting the settings that can leave IA impossible to find:
+        /// a window position on a monitor that no longer exists, or a window hidden in the system tray.
+        /// </summary>
+        public const string SafeModeArgument = "--safe-mode";
+
+        public static bool IsSafeMode(string[]? args) {
+            return args?.Any(arg => SafeModeArgument.Equals(arg?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? false;
+        }
+
+        /// <summary>
+        /// Restores the window related settings to their defaults
+        /// </summary>
+        public static void ResetWindowSettings(SettingsService settings) {
+            Logger.Info("Safe mode: resetting window position, start minimized and minimize to tray.");
+
+            settings.GetLocal().WindowPositionSettings = null;
+            settings.GetLocal().StartMinimized = false;
+            settings.GetPersistent().MinimizeToTray = false;
+        }
+
+        /// <summary>
+        /// Deletes the settings file and restarts IA, leaving the item database untouched.
+        /// The process is killed rather than shut down cleanly: the in-memory settings are written back
+        /// on exit (window position), which would recreate the file we just deleted.
+        /// </summary>
+        public static void ResetSettingsAndRestart() {
+            try {
+                Logger.Info($"Deleting {GlobalPaths.SettingsFile} on user request");
+                File.Delete(GlobalPaths.SettingsFile);
+            }
+            catch (Exception ex) {
+                Logger.Error($"Could not delete {GlobalPaths.SettingsFile}", ex);
+                MessageBox.Show($"Could not delete the settings file:\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            Process.Start(new ProcessStartInfo { FileName = Application.ExecutablePath, UseShellExecute = true });
+            LogManager.Shutdown();
+            Environment.Exit(0);
+        }
+
         public static void PerformGrimUpdateCheck(SettingsService settingsService) {
             string? location = settingsService.GetLocal().GrimDawnLocation?.FirstOrDefault();
             long lastParsed = settingsService.GetLocal().GrimDawnLocationLastModified;
