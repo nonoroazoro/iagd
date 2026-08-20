@@ -23,7 +23,8 @@ namespace IAGrim
     internal static class Program {
         private static readonly ILog Logger = LogManager.GetLogger(typeof(Program));
         private static MainWindow? _mw;
-        private static readonly StartupService StartupService = new StartupService();
+        private static readonly StartupService _startupService = new StartupService();
+        private static int _showExistingInstancePending;
 
         private static void LoadUuid(SettingsService settings) {
             var uuid = settings.GetPersistent().UUID;
@@ -81,6 +82,10 @@ namespace IAGrim
         /// </summary>
         [STAThread]
         static void Main(string[] args) {
+            if (!StartupService.CompletePendingSettingsReset(args)) {
+                return;
+            }
+
             if (Thread.CurrentThread.Name == null) {
                 Thread.CurrentThread.Name = "Main";
                 Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("en-US");
@@ -107,7 +112,7 @@ namespace IAGrim
             ExceptionReporter.EnableLogUnhandledOnThread();
 
             Uris.Initialize(Uris.EnvCloud);
-            StartupService.Init();
+            _startupService.Init();
 
 
 
@@ -131,35 +136,60 @@ namespace IAGrim
             using (SingleInstance singleInstance = new SingleInstance(guid)) {
                 if (singleInstance.IsFirstInstance) {
                     Logger.Info("Calling run..");
-                    singleInstance.ListenForArgumentsFromSuccessiveInstances();
+                    singleInstance.ListenForSuccessiveInstances(RequestShowExistingInstance);
                     Application.EnableVisualStyles();
                     Application.SetCompatibleTextRenderingDefault(false);
                     Logger.Info("Visual styles enabled..");
                     Run(args);
                 }
                 else {
-                    // Nothing listens for arguments from successive instances, so a safe mode reset here would just be overwritten by the running instance when it stores its window position on exit.
+                    // Safe mode cannot reset a running instance because its next save would restore the old values.
                     if (safeMode) {
                         Logger.Info("Safe mode requested, but IA is already running.");
-                        MessageBox.Show(
-                            "Item Assistant is already running, look for the icon in the system tray next to the clock.\n\n"
-                            + "Close the running instance and then start safe mode again.",
-                            "Item Assistant is already running", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        StartupService.ShowSafeModeAlreadyRunningMessage();
                     }
 
-                    // Ask the running instance to show itself, otherwise starting IA a second time looks like
-                    // nothing happened at all: the window may well be hidden away in the system tray.
-                    ShowExistingInstanceMessage.Notify();
+                    singleInstance.NotifyFirstInstance();
 
                     Logger.Info("Already has an instance of IA Running, exiting..");
                 }
             }
+
+            StartupService.CompleteSettingsResetAndRestart();
 
             Logger.Info("IA Exited");
             LogManager.Shutdown();
             System.Environment.Exit(0);
 
 
+        }
+
+        private static void RequestShowExistingInstance() {
+            Interlocked.Exchange(ref _showExistingInstancePending, 1);
+
+            var mainWindow = _mw;
+            if (mainWindow == null || mainWindow.IsDisposed || !mainWindow.IsHandleCreated) {
+                return;
+            }
+
+            try {
+                mainWindow.BeginInvoke(ShowPendingExistingInstance);
+            }
+            catch (InvalidOperationException) {
+                // The window is being created or disposed. Its Shown event handles a pending request.
+            }
+        }
+
+        private static void ShowPendingExistingInstance() {
+            if (Interlocked.Exchange(ref _showExistingInstancePending, 0) == 0) {
+                return;
+            }
+
+            var mainWindow = _mw;
+            if (mainWindow != null && !mainWindow.IsDisposed) {
+                Logger.Info("A second instance was started, showing the existing window.");
+                mainWindow.ShowAndCenterWindow();
+            }
         }
 
         private static void DumpTranslationTemplate() {
@@ -282,10 +312,11 @@ namespace IAGrim
                 serviceProvider,
                 parsingService
             );
+            _mw.Shown += (_, _) => ShowPendingExistingInstance();
 
             Logger.Info("Checking for database updates..");
 
-            StartupService.PerformIconCheck(grimDawnDetector, settingsService);
+            _startupService.PerformIconCheck(grimDawnDetector, settingsService);
 
 
             if (settingsService.GetPersistent().DarkMode) {

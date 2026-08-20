@@ -1,110 +1,156 @@
-﻿using log4net;
+using log4net;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
-using System.Linq;
-using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace EvilsoftCommons.SingleInstance {
-
-    /// <summary>This class ensures there is only one instance of this program running at any given time.
-    /// Running multiple instances could result in item duplication </summary>
-    public class SingleInstance : IDisposable {
-        static ILog logger = LogManager.GetLogger("SingleInstance");
-        private Mutex? mutex = null;
-        private Boolean ownsMutex = false;
-        private Guid identifier = Guid.Empty;
+    /// <summary>
+    /// Ensures there is only one application instance and securely notifies the running instance of later launches.
+    /// </summary>
+    public sealed class SingleInstance : IDisposable {
+        private static readonly ILog _logger = LogManager.GetLogger("SingleInstance");
+        private readonly Mutex _mutex;
+        private readonly bool _ownsMutex;
+        private readonly string _pipeName;
+        private CancellationTokenSource? _listenerCancellation;
+        private Task? _listenerTask;
+        private bool _disposed;
 
         /// <summary>
-        /// Enforces single instance for an application.
+        /// Enforces a single instance for an application.
         /// </summary>
         /// <param name="identifier">An identifier unique to this application.</param>
         public SingleInstance(Guid identifier) {
-            this.identifier = identifier;
-            mutex = new Mutex(true, identifier.ToString(), out ownsMutex);
+            _pipeName = identifier.ToString();
+            _mutex = new Mutex(true, _pipeName, out _ownsMutex);
         }
 
         /// <summary>
-        /// Indicates whether this is the first instance of this application.
+        /// Indicates whether this is the first application instance.
         /// </summary>
-        public Boolean IsFirstInstance { get { return ownsMutex; } }
+        public bool IsFirstInstance => _ownsMutex;
 
         /// <summary>
-        /// Passes the given arguments to the first running instance of the application.
+        /// Notifies the first running instance that another launch was requested.
         /// </summary>
-        /// <param name="arguments">The arguments to pass.</param>
-        /// <returns>Return true if the operation succeded, false otherwise.</returns>
-        public Boolean PassArgumentsToFirstInstance(String[] arguments) {
-            if (IsFirstInstance)
+        public bool NotifyFirstInstance() {
+            if (IsFirstInstance) {
                 throw new InvalidOperationException("This is the first instance.");
+            }
 
             try {
-                using (NamedPipeClientStream client = new NamedPipeClientStream(identifier.ToString())) {
-                    client.Connect(200);
-
-                    // The writer is created only once the pipe is connected: disposing a StreamWriter wrapped
-                    // around an unconnected pipe flushes it, and PipeStream then throws InvalidOperationException
-                    // from inside the unwind. That replaces the TimeoutException on its way to the catch below,
-                    // leaves the process with an unhandled exception, and kills the second instance mid-startup.
-                    using (StreamWriter writer = new StreamWriter(client)) {
-                        foreach (String argument in arguments)
-                            writer.WriteLine(argument);
-                    }
-                }
+                using var client = new NamedPipeClientStream(
+                    ".",
+                    _pipeName,
+                    PipeDirection.Out,
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                client.Connect(1000);
+                using var writer = new StreamWriter(client);
+                writer.WriteLine("show");
                 return true;
             }
-            catch (TimeoutException) { } //Couldn't connect to server
-            catch (IOException) { } //Pipe was broken
-            catch (Exception ex) {
-                // Nothing is supposed to stop a second instance from exiting quietly.
-                logger.Warn("Unexpected error passing the arguments to the running instance", ex);
+            catch (TimeoutException) {
+                return false;
             }
-
-            return false;
+            catch (IOException) {
+                return false;
+            }
+            catch (Exception ex) {
+                _logger.Warn("Unexpected error notifying the running instance", ex);
+                return false;
+            }
         }
 
         /// <summary>
-        /// Listens for arguments being passed from successive instances of the application.
-        ///
-        /// Does nothing: no pipe server is created, so <see cref="PassArgumentsToFirstInstance"/> always
-        /// times out and the arguments of a second instance are discarded.
+        /// Listens for launch requests from successive instances of the application.
         /// </summary>
-        public void ListenForArgumentsFromSuccessiveInstances() {
-            if (!IsFirstInstance)
+        /// <param name="onLaunchRequested">The action to run when another instance starts.</param>
+        public void ListenForSuccessiveInstances(Action onLaunchRequested) {
+            if (!IsFirstInstance) {
                 throw new InvalidOperationException("This is not the first instance.");
+            }
+
+            var listenerCancellation = new CancellationTokenSource();
+            _listenerCancellation = listenerCancellation;
+            var cancellationToken = listenerCancellation.Token;
+            _listenerTask = Task.Run(() => ListenAsync(onLaunchRequested, cancellationToken));
         }
 
+        private async Task ListenAsync(Action onLaunchRequested, CancellationToken cancellationToken) {
+            while (!cancellationToken.IsCancellationRequested) {
+                try {
+                    using var server = new NamedPipeServerStream(
+                        _pipeName,
+                        PipeDirection.In,
+                        1,
+                        PipeTransmissionMode.Byte,
+                        PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                    await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        #region IDisposable
-        private Boolean disposed = false;
-
-        protected virtual void Dispose(bool disposing) {
-            if (!disposed) {
-                if (mutex != null && ownsMutex)
-                    try {
-                        mutex.ReleaseMutex();
-                        mutex = null;
+                    using var reader = new StreamReader(server);
+                    using var readCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    readCancellation.CancelAfter(TimeSpan.FromSeconds(1));
+                    var command = await reader.ReadLineAsync(readCancellation.Token).ConfigureAwait(false);
+                    if (command == "show") {
+                        onLaunchRequested();
                     }
-                    catch (System.ApplicationException) {
-                        // Were shutting down, so just eat it and move on.
-                    }
-                    catch (Exception ex) {
-                        logger.Warn(ex.Message);
-                    }
-                disposed = true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) {
+                    return;
+                }
+                catch (OperationCanceledException) {
+                    _logger.Warn("The single-instance notification timed out");
+                }
+                catch (IOException ex) {
+                    _logger.Warn("The single-instance notification pipe failed", ex);
+                }
+                catch (Exception ex) {
+                    _logger.Warn("Unexpected error receiving a launch notification", ex);
+                    return;
+                }
             }
         }
 
-        ~SingleInstance() {
-            Dispose(false);
+        private void Dispose(bool disposing) {
+            if (_disposed) {
+                return;
+            }
+
+            if (disposing) {
+                _listenerCancellation?.Cancel();
+                try {
+                    _listenerTask?.Wait(TimeSpan.FromSeconds(1));
+                }
+                catch (AggregateException ex) {
+                    _logger.Warn("The single-instance listener did not stop cleanly", ex.Flatten());
+                }
+                _listenerCancellation?.Dispose();
+            }
+
+            if (_ownsMutex) {
+                try {
+                    _mutex.ReleaseMutex();
+                }
+                catch (ApplicationException) {
+                    // The process is shutting down, so there is nothing left to release.
+                }
+                catch (Exception ex) {
+                    _logger.Warn(ex.Message);
+                }
+            }
+
+            if (disposing) {
+                _mutex.Dispose();
+            }
+
+            _disposed = true;
         }
 
         public void Dispose() {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
-        #endregion
     }
 }

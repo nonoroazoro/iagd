@@ -8,6 +8,7 @@ using IAGrim.Utilities;
 using IAGrim.Utilities.HelperClasses;
 using log4net;
 using NHibernate;
+using StatTranslator;
 using System.Diagnostics;
 using System.Security.Principal;
 
@@ -142,8 +143,20 @@ namespace IAGrim {
         /// </summary>
         public const string SafeModeArgument = "--safe-mode";
 
+        private const string _completeSettingsResetArgument = "--complete-settings-reset";
+        private static bool _settingsResetRequested;
+        private static readonly EnglishLanguage _englishUiLanguage = new EnglishLanguage(new Dictionary<string, string>());
+
         public static bool IsSafeMode(string[]? args) {
             return args?.Any(arg => SafeModeArgument.Equals(arg?.Trim(), StringComparison.OrdinalIgnoreCase)) ?? false;
+        }
+
+        public static void ShowSafeModeAlreadyRunningMessage() {
+            MessageBox.Show(
+                GetConfiguredUiTag("iatag_ui_safe_mode_running_body"),
+                GetConfiguredUiTag("iatag_ui_safe_mode_running_title"),
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
         }
 
         /// <summary>
@@ -158,24 +171,100 @@ namespace IAGrim {
         }
 
         /// <summary>
-        /// Deletes the settings file and restarts IA, leaving the item database untouched.
-        /// The process is killed rather than shut down cleanly: the in-memory settings are written back
-        /// on exit (window position), which would recreate the file we just deleted.
+        /// Requests a clean shutdown before resetting settings and restarting IA.
         /// </summary>
         public static void ResetSettingsAndRestart() {
-            try {
-                Logger.Info($"Deleting {GlobalPaths.SettingsFile} on user request");
-                File.Delete(GlobalPaths.SettingsFile);
-            }
-            catch (Exception ex) {
-                Logger.Error($"Could not delete {GlobalPaths.SettingsFile}", ex);
-                MessageBox.Show($"Could not delete the settings file:\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            Logger.Info("Settings reset and restart requested");
+            _settingsResetRequested = true;
+            Application.Exit();
+        }
+
+        /// <summary>
+        /// Starts a replacement process after the single-instance mutex is released.
+        /// </summary>
+        public static void CompleteSettingsResetAndRestart() {
+            if (!_settingsResetRequested) {
                 return;
             }
 
-            Process.Start(new ProcessStartInfo { FileName = Application.ExecutablePath, UseShellExecute = true });
-            LogManager.Shutdown();
-            Environment.Exit(0);
+            try {
+                Process.Start(new ProcessStartInfo {
+                    FileName = Application.ExecutablePath,
+                    Arguments = $"{_completeSettingsResetArgument} {Environment.ProcessId}",
+                    UseShellExecute = true,
+                });
+            }
+            catch (Exception ex) {
+                Logger.Error("Could not reset settings and restart Item Assistant", ex);
+                MessageBox.Show(GetConfiguredUiTag("iatag_ui_resetsettings_restart_error", ex.Message),
+                    GetConfiguredUiTag("iatag_ui_resetsettings_error_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>
+        /// Waits for the old process to stop before deleting settings, preventing shutdown workers from
+        /// recreating the file after it has been reset.
+        /// </summary>
+        public static bool CompletePendingSettingsReset(string[]? args) {
+            var argumentIndex = Array.FindIndex(args ?? Array.Empty<string>(), arg =>
+                _completeSettingsResetArgument.Equals(arg, StringComparison.OrdinalIgnoreCase));
+            if (argumentIndex < 0) {
+                return true;
+            }
+
+            if (args == null || argumentIndex + 1 >= args.Length ||
+                !int.TryParse(args[argumentIndex + 1], out var parentProcessId)) {
+                MessageBox.Show(GetConfiguredUiTag("iatag_ui_resetsettings_invalid_restart"),
+                    GetConfiguredUiTag("iatag_ui_resetsettings_error_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+
+            try {
+                try {
+                    using var parentProcess = Process.GetProcessById(parentProcessId);
+                    if (!parentProcess.WaitForExit(10000)) {
+                        throw new TimeoutException("The previous Item Assistant process did not exit in time.");
+                    }
+                }
+                catch (ArgumentException) {
+                    // The previous process exited before the replacement process could inspect it.
+                }
+
+                Logger.Info($"Deleting {GlobalPaths.SettingsFile} on user request");
+                File.Delete(GlobalPaths.SettingsFile);
+                return true;
+            }
+            catch (Exception ex) {
+                Logger.Error("Could not complete the settings reset", ex);
+                MessageBox.Show(GetConfiguredUiTag("iatag_ui_resetsettings_complete_error", ex.Message),
+                    GetConfiguredUiTag("iatag_ui_resetsettings_error_title"),
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        private static string GetConfiguredUiTag(string tag, params object[] args) {
+            var fallback = _englishUiLanguage.GetTag(tag, args);
+
+            try {
+                var languageCode = SettingsService.Load(GlobalPaths.SettingsFile).GetLocal().LanguageCode;
+                var localized = new LocalizationLoader().GetIaTranslation(languageCode, tag);
+                if (string.IsNullOrEmpty(localized)) {
+                    return fallback;
+                }
+
+                for (var index = 0; index < args.Length; index++) {
+                    localized = localized.Replace($"{{{index}}}", args[index]?.ToString());
+                }
+
+                return localized;
+            }
+            catch (Exception ex) {
+                Logger.Warn($"Could not load UI translation '{tag}', using English", ex);
+                return fallback;
+            }
         }
 
         public static void PerformGrimUpdateCheck(SettingsService settingsService) {

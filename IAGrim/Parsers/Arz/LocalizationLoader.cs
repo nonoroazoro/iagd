@@ -109,12 +109,30 @@ namespace IAGrim.Parsers.Arz {
             }
         }
 
+        /// <summary>
+        /// Loads one bundled UI translation without requiring parsed game data.
+        /// </summary>
+        /// <param name="languageCode">The configured UI language code.</param>
+        /// <param name="tag">The UI translation tag.</param>
+        public string? GetIaTranslation(string languageCode, string tag) {
+            var filePath = LanguageMapping.GetIaTranslationFile(languageCode);
+            if (filePath == null) {
+                return null;
+            }
+
+            LoadIaTranslationFile(filePath);
+            return _tagsIa != null && _tagsIa.TryGetValue(tag, out var value) ? value : null;
+        }
+
         private Dictionary<string, string> Parse(string data) {
             Dictionary<string, string> result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var line in data.Split('\n')) {
                 var sline = line.Split('=');
                 if (sline.Length == 2) {
-                    result[sline[0].Trim()] = sline[1].Replace("^k", "").TrimEnd('\r');
+                    result[sline[0].Trim()] = sline[1]
+                        .Replace("^k", "")
+                        .Replace("\\n", "\n")
+                        .TrimEnd('\r');
                 }
             }
 

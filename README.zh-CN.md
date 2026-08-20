@@ -11,7 +11,7 @@
 - UI 支持 English 和简体中文。
 - 装备名称与属性使用所选的 Grim Dawn 游戏数据语言，与 UI 语言互相独立；缺少对应数据时 fallback 到 English。
 - 游戏数据库由用户手动加载，启动时不会自动解析或替换数据。
-- 可通过 GrimTools build URL 或 ID 搜索装备，直接查询本地 Item Assistant 数据库，不依赖 `gd-cli`。
+- 可通过 GrimTools build URL 或 ID 搜索装备，直接查询本地 Item Assistant game records。
 - 按装备基底统一识别重复装备，并支持重复装备过滤和数量排序。
 - 支持装备对比、确定性的 max-roll 数值计算和属性排序。
 - 转移后自动刷新，通知准确显示物品名称和数量，并可永久关闭 Mod filter 提醒。
@@ -29,6 +29,10 @@
 ```
 
 可运行文件会直接输出到 `artifacts`。
+
+## 相关项目
+
+- [gd-cli](https://github.com/nonoroazoro/gd-cli)：我维护的、面向 AI agent 的 Grim Dawn 游戏数据 CLI。
 
 ## 致谢
 

@@ -3,7 +3,6 @@ using EvilsoftCommons;
 using EvilsoftCommons.Cloud;
 using EvilsoftCommons.DllInjector;
 using EvilsoftCommons.Exceptions;
-using EvilsoftCommons.SingleInstance;
 using IAGrim.Backup.Cloud.CefSharp.Events;
 using IAGrim.Backup.Cloud.Service;
 using IAGrim.Backup.Cloud.Util;
@@ -433,26 +432,12 @@ namespace IAGrim.UI {
             }
         }
 
-        protected override void OnHandleCreated(EventArgs e) {
-            base.OnHandleCreated(e);
-            ShowExistingInstanceMessage.AllowReceiving(Handle);
-        }
-
-        protected override void WndProc(ref Message m) {
-            if (ShowExistingInstanceMessage.Id != 0 && m.Msg == ShowExistingInstanceMessage.Id) {
-                Logger.Info("A second instance was started, showing the existing window.");
-                ShowAndCenterWindow();
-            }
-
-            base.WndProc(ref m);
-        }
-
         /// <summary>
         /// Brings IA back up wherever it happens to be: minimized, hidden in the tray, or on a monitor
         /// that no longer exists. The window is centered on the screen the mouse is on, which is the screen
         /// the user just started IA from.
         /// </summary>
-        private void ShowAndCenterWindow() {
+        internal void ShowAndCenterWindow() {
             try {
                 // Restores from the tray, including the window state it had before it was minimized.
                 _minimizeToTrayHandler?.notifyIcon_MouseDoubleClick(this, null);

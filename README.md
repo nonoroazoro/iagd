@@ -11,7 +11,7 @@ A portable Grim Dawn item manager focused on localized game data, accurate dupli
 - English and Simplified Chinese UI.
 - Game item names and stats follow the selected Grim Dawn data language independently of the UI language, with English fallback.
 - Manual game database loading. Startup never parses or replaces game data automatically.
-- GrimTools build URL and ID search resolved directly against the local Item Assistant database, without `gd-cli`.
+- GrimTools build URL and ID search resolved directly against local Item Assistant game records.
 - Duplicate grouping by canonical base item, including duplicate filtering and quantity sorting.
 - Item comparison with deterministic max-roll values and property ranking.
 - Transfer refresh, exact transfer notifications, and persistent mod-filter warning dismissal.
@@ -29,6 +29,10 @@ Windows is required. See [BUILDING.md](BUILDING.md) for prerequisites and option
 ```
 
 Runnable files are written directly to `artifacts`.
+
+## Related Project
+
+- [gd-cli](https://github.com/nonoroazoro/gd-cli): a Grim Dawn game-data CLI designed for AI agents and maintained by me.
 
 ## Credits
 

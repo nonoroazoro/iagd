@@ -116,8 +116,9 @@ namespace IAGrim.UI.Tabs {
         }
 
         private void buttonResetSettings_Click(object sender, EventArgs e) {
-            var body = RuntimeSettings.Language!.GetTag("iatag_ui_resetsettings_body");
-            var title = RuntimeSettings.Language!.GetTag("iatag_ui_resetsettings_title");
+            var body = RuntimeSettings.Language?.GetTag("iatag_ui_resetsettings_body")
+                ?? "This will delete all settings and restart Item Assistant. Your items will not be deleted. Continue?";
+            var title = RuntimeSettings.Language?.GetTag("iatag_ui_resetsettings_title") ?? "Reset settings?";
 
             var result = MessageBox.Show(body, title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                 MessageBoxDefaultButton.Button2);
