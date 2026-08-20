@@ -25,7 +25,6 @@ jobs:
     env:
       CI: true
       DOTNET_NOLOGO: true
-      NUGET_PACKAGES: ${{ runner.temp }}\nuget-packages
       BOOST_ARCHIVE_SHA256: b8911c98c2a95faa516aca354872b0ea63962a437382822aaf7bca95f528db65
 
     steps:
@@ -56,7 +55,7 @@ jobs:
       - name: Cache NuGet packages
         uses: actions/cache@v5
         with:
-          path: ${{ env.NUGET_PACKAGES }}
+          path: ${{ runner.temp }}\nuget-packages
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
           restore-keys: |
             nuget-${{ runner.os }}-
@@ -116,10 +115,14 @@ jobs:
 
       - name: Build production package
         shell: pwsh
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}\nuget-packages
         run: .\build-package.ps1 -InstallDependencies
 
       - name: Test
         shell: pwsh
+        env:
+          NUGET_PACKAGES: ${{ runner.temp }}\nuget-packages
         run: |
           $solutionDirectory = (Resolve-Path -LiteralPath ".").Path.Replace("\", "/") + "/"
           dotnet test tests\IAGrim.Tests.csproj `
